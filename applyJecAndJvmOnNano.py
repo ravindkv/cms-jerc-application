@@ -62,7 +62,7 @@ class ScaleJetMet:
         self._load_refs()
 
     def _load_config(self):
-        cfg = ReadConfig("JescJercAndVetoTagName.json")
+        cfg = ReadConfig("configJecAndJvm.json")
         year = "2018"
         self.jerc_path       = cfg.get_value([year, "jercJsonPath"])
         self.name_l1         = cfg.get_value([year, "jetL1FastJetName"])
@@ -195,6 +195,6 @@ def main(input_file: str):
         print("="*20 + f" End of Event {i} " + "="*20 + "\n")
 
 if __name__ == "__main__":
-    infile = sys.argv[1] if len(sys.argv) > 1 else "NanoAod.root"
+    infile = sys.argv[1] if len(sys.argv) > 1 else "NanoAod_Data.root"
     main(infile)
 

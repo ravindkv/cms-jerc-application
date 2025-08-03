@@ -4,5 +4,5 @@
 * cmsenv
 * git clone git@github.com:ravindkv/cms-jerc-application.git
 * cd cms-jerc-application
-* root -b applyJescJercAndVetoOnNano.C 
-* python applyJescJercAndVetoOnNano.py
+* root -b applyJecAndJvmOnNano.C -q 
+* python applyJecAndJvmOnNano.py 

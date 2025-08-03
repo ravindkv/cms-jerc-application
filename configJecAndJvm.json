@@ -23,6 +23,16 @@
         "jetL2ResidualName": "Summer19UL16APV_RunEF_V7_DATA_L2Residual_AK4PFchs",
         "jetL2L3ResidualName": "Summer19UL16APV_RunEF_V7_DATA_L2L3Residual_AK4PFchs"
       }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL16APV_V7_MC_AbsoluteScale_AK4PFchs",
+        "Summer19UL16APV_V7_MC_Fragmentation_AK4PFchs"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL16APV_V7_MC_Regrouped_BBEC1_AK4PFchs",
+        "Summer19UL16APV_V7_MC_Regrouped_BBEC1_2016_AK4PFchs"
+      ]
     }
   },
   "2016Post": {
@@ -42,17 +52,27 @@
         "jetL2ResidualName": "Summer19UL16_RunFGH_V7_DATA_L2Residual_AK4PFchs",
         "jetL2L3ResidualName": "Summer19UL16_RunFGH_V7_DATA_L2L3Residual_AK4PFchs"
       }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL16_V7_MC_AbsoluteScale_AK4PFchs",
+        "Summer19UL16_V7_MC_Fragmentation_AK4PFchs"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL16_V7_MC_Regrouped_BBEC1_AK4PFchs",
+        "Summer19UL16_V7_MC_Regrouped_BBEC1_2016_AK4PFchs"
+      ]
     }
   },
   "2017": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2017_UL/jet_jercjson.gz",
+    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2017_UL/jet_jerc.json.gz",
     "jetL1FastJetName": "Summer19UL17_V5_MC_L1FastJet_AK4PFchs",
     "jetL2RelativeName": "Summer19UL17_V5_MC_L2Relative_AK4PFchs",
     "jetL3AbsoluteName": "Summer19UL17_V5_MC_L3Absolute_AK4PFchs",
     "jetL2ResidualName": "Summer19UL17_V5_MC_L2Residual_AK4PFchs",
     "jetL2L3ResidualName": "Summer19UL17_V5_MC_L2L3Residual_AK4PFchs",
-    "JerResoName": "Summer19UL17_JRV3_MC_PtResolution_AK4PFchs",
-    "JerSfName": "Summer19UL17_JRV3_MC_ScaleFactor_AK4PFchs",
+    "JerResoName": "Summer19UL17_JRV2_MC_PtResolution_AK4PFchs",
+    "JerSfName": "Summer19UL17_JRV2_MC_ScaleFactor_AK4PFchs",
     "data": {
       "Era2017B": {
         "jetL1FastJetName": "Summer19UL17_RunB_V5_DATA_L1FastJet_AK4PFchs",
@@ -89,6 +109,16 @@
         "jetL2ResidualName": "Summer19UL17_RunF_V5_DATA_L2Residual_AK4PFchs",
         "jetL2L3ResidualName": "Summer19UL17_RunF_V5_DATA_L2L3Residual_AK4PFchs"
       }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL17_V5_MC_AbsoluteScale_AK4PFchs",
+        "Summer19UL17_V5_MC_Fragmentation_AK4PFchs"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL17_V5_MC_Regrouped_BBEC1_AK4PFchs",
+        "Summer19UL17_V5_MC_Regrouped_BBEC1_2017_AK4PFchs"
+      ]
     }
   },
   "2018": {
@@ -129,6 +159,16 @@
         "jetL2ResidualName": "Summer19UL18_RunD_V5_DATA_L2Residual_AK4PFchs",
         "jetL2L3ResidualName": "Summer19UL18_RunD_V5_DATA_L2L3Residual_AK4PFchs"
       }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL18_V5_MC_AbsoluteScale_AK4PFchs",
+        "Summer19UL18_V5_MC_Fragmentation_AK4PFchs"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL18_V5_MC_Regrouped_BBEC1_AK4PFchs",
+        "Summer19UL18_V5_MC_Regrouped_BBEC1_2018_AK4PFchs"
+      ]
     }
   }
 }
