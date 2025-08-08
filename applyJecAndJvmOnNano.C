@@ -19,6 +19,7 @@
 #include <vector>
 #include <map>
 #include <optional>
+#include <cmath>
 #include <TFile.h>
 #include <TH1F.h>
 #include <TDirectory.h>
@@ -218,112 +219,108 @@ struct CorrectionRefs {
     }
 };
 
-void applyJecNominal(NanoBranches& nb, CorrectionRefs& refs, bool isData) {
-    TLorentzVector met_nano;
-    met_nano.SetPtEtaPhiM(nb.ChsMET_pt, 0., nb.ChsMET_phi, 0.);
-    std::cout << "[MET Nano]    Pt = " << met_nano.Pt()
-              << "  Phi = " << met_nano.Phi() << "\n";
+// Build a TLorentzVector from NanoAOD jet branches
+TLorentzVector makeJetP4(const NanoBranches& nb, UInt_t idx) {
+    TLorentzVector p4;
+    p4.SetPtEtaPhiM(nb.Jet_pt[idx], nb.Jet_eta[idx], nb.Jet_phi[idx], nb.Jet_mass[idx]);
+    return p4;
+}
 
-    TLorentzVector met = met_nano;
+// Apply a multiplicative scale factor to both the stored branch values
+// and the working four-vector.
+void applyScale(NanoBranches& nb, UInt_t idx, TLorentzVector& p4, double scale) {
+    nb.Jet_pt[idx]   *= scale;
+    nb.Jet_mass[idx] *= scale;
+    p4.SetPtEtaPhiM(nb.Jet_pt[idx], nb.Jet_eta[idx], nb.Jet_phi[idx], nb.Jet_mass[idx]);
+}
+
+// Correct a single jet and update MET. All verbose printing is optional
+// to keep the nominal correction loop concise.
+void correctJet(NanoBranches& nb,
+                CorrectionRefs& refs,
+                bool isData,
+                UInt_t idx,
+                TLorentzVector& met,
+                bool verbose=false) {
+    TLorentzVector p4 = makeJetP4(nb, idx);
+    met += p4;
+    if (verbose) {
+        std::cout << "\nJet[" << idx << "] Nano    Pt=" << p4.Pt()
+                  << "  M=" << p4.M() << "\n";
+    }
+
+    // Raw correction
+    applyScale(nb, idx, p4, 1.0f - nb.Jet_rawFactor[idx]);
+    if (verbose) {
+        std::cout << " Jet[" << idx << "] Raw     Pt=" << p4.Pt()
+                  << "  M=" << p4.M() << "\n";
+    }
+
+    // L1 fastjet
+    double c1 = refs.corrL1->evaluate({nb.Jet_area[idx],
+                                       nb.Jet_eta[idx],
+                                       nb.Jet_pt[idx],
+                                       nb.Rho});
+    applyScale(nb, idx, p4, c1);
+    if (verbose) {
+        std::cout << " Jet[" << idx << "] L1Rc    Pt=" << p4.Pt()
+                  << "  M=" << p4.M() << "\n";
+    }
+
+    // L2 relative
+    double c2 = refs.corrL2->evaluate({nb.Jet_eta[idx], nb.Jet_pt[idx]});
+    applyScale(nb, idx, p4, c2);
+    if (verbose) {
+        std::cout << " Jet[" << idx << "] L2Rel   Pt=" << p4.Pt()
+                  << "  M=" << p4.M() << "\n";
+    }
+
+    // Residual for data
+    if (isData) {
+        double cR = refs.corrL2ResL3Res->evaluate({nb.Jet_eta[idx], nb.Jet_pt[idx]});
+        applyScale(nb, idx, p4, cR);
+        if (verbose) {
+            std::cout << " Jet[" << idx << "] L2ResL3 Pt=" << p4.Pt()
+                      << "  M=" << p4.M() << "\n";
+        }
+    }
+
+    // JER smearing for MC
+    if (!isData) {
+        double reso = refs.corrJerReso->evaluate({nb.Jet_eta[idx], nb.Jet_pt[idx], nb.Rho});
+        double sf   = refs.corrJerSf->evaluate({nb.Jet_eta[idx], std::string("nom")});
+        refs.randomGen.SetSeed(static_cast<UInt_t>(nb.event + nb.run + nb.luminosityBlock));
+        double smear = std::max(0.0, 1 + refs.randomGen.Gaus(0, reso)
+                                     * std::sqrt(std::max(sf * sf - 1.0, 0.0)));
+        applyScale(nb, idx, p4, smear);
+        if (verbose) {
+            std::cout << " Jet[" << idx << "] Jer     Pt=" << p4.Pt()
+                      << "  M=" << p4.M() << "\n";
+        }
+    }
+
+    // Final jet after all corrections
+    if (verbose) {
+        std::cout << " Jet[" << idx << "] Corr    Pt=" << p4.Pt()
+                  << "  M=" << p4.M() << "\n";
+    }
+
+    met -= p4; // subtract corrected jet
+}
+
+void applyJecNominal(NanoBranches& nb, CorrectionRefs& refs, bool isData) {
+    TLorentzVector met;
+    met.SetPtEtaPhiM(nb.ChsMET_pt, 0., nb.ChsMET_phi, 0.);
+    std::cout << "[MET Nano]    Pt = " << met.Pt()
+              << "  Phi = " << met.Phi() << "\n";
 
     for (UInt_t i = 0; i < nb.nJet; ++i) {
         if (nb.Jet_pt[i] < 15 || std::abs(nb.Jet_eta[i]) > 5.2) continue;
-
-        TLorentzVector p4;
-        p4.SetPtEtaPhiM(nb.Jet_pt[i],
-                        nb.Jet_eta[i],
-                        nb.Jet_phi[i],
-                        nb.Jet_mass[i]);
-        met += p4;
-        std::cout << "\nJet[" << i << "] Nano    Pt=" << p4.Pt()
-                  << "  M=" << p4.M() << "\n";
-
-        // Raw
-        float rawScale = 1.0f - nb.Jet_rawFactor[i];
-        nb.Jet_pt[i]   *= rawScale;
-        nb.Jet_mass[i] *= rawScale;
-        p4.SetPtEtaPhiM(nb.Jet_pt[i],
-                        nb.Jet_eta[i],
-                        nb.Jet_phi[i],
-                        nb.Jet_mass[i]);
-        std::cout << " Jet[" << i << "] Raw     Pt=" << p4.Pt()
-                  << "  M=" << p4.M() << "\n";
-
-        // L1Rc
-        double c1 = refs.corrL1->evaluate({nb.Jet_area[i],
-                                          nb.Jet_eta[i],
-                                          nb.Jet_pt[i],
-                                          nb.Rho});
-        nb.Jet_pt[i]   *= c1;
-        nb.Jet_mass[i] *= c1;
-        p4.SetPtEtaPhiM(nb.Jet_pt[i],
-                        nb.Jet_eta[i],
-                        nb.Jet_phi[i],
-                        nb.Jet_mass[i]);
-        std::cout << " Jet[" << i << "] L1Rc    Pt=" << p4.Pt()
-                  << "  M=" << p4.M() << "\n";
-
-        // L2Rel
-        double c2 = refs.corrL2->evaluate({nb.Jet_eta[i],
-                                          nb.Jet_pt[i]});
-        nb.Jet_pt[i]   *= c2;
-        nb.Jet_mass[i] *= c2;
-        p4.SetPtEtaPhiM(nb.Jet_pt[i],
-                        nb.Jet_eta[i],
-                        nb.Jet_phi[i],
-                        nb.Jet_mass[i]);
-        std::cout << " Jet[" << i << "] L2Rel   Pt=" << p4.Pt()
-                  << "  M=" << p4.M() << "\n";
-
-        // Data residual
-        if (isData) {
-            double cR = refs.corrL2ResL3Res->evaluate({nb.Jet_eta[i],
-                                                       nb.Jet_pt[i]});
-            nb.Jet_pt[i]   *= cR;
-            nb.Jet_mass[i] *= cR;
-            p4.SetPtEtaPhiM(nb.Jet_pt[i],
-                            nb.Jet_eta[i],
-                            nb.Jet_phi[i],
-                            nb.Jet_mass[i]);
-            std::cout << " Jet[" << i << "] L2ResL3 Pt=" << p4.Pt()
-                      << "  M=" << p4.M() << "\n";
-        }
-
-        // JER smearing (MC)
-        if (!isData) {
-            double reso = refs.corrJerReso->evaluate({nb.Jet_eta[i],
-                                                      nb.Jet_pt[i],
-                                                      nb.Rho});
-            double sf   = refs.corrJerSf->evaluate({nb.Jet_eta[i],
-                                                   std::string("nom")});
-            refs.randomGen.SetSeed(static_cast<UInt_t>(nb.event, nb.run, nb.luminosityBlock));
-            double smear = std::max(0.0, 1 + refs.randomGen.Gaus(0, reso)
-                                         * std::sqrt(std::max(sf * sf - 1.0, 0.0)));
-            nb.Jet_pt[i]   *= smear;
-            nb.Jet_mass[i] *= smear;
-            p4.SetPtEtaPhiM(nb.Jet_pt[i],
-                            nb.Jet_eta[i],
-                            nb.Jet_phi[i],
-                            nb.Jet_mass[i]);
-            std::cout << " Jet[" << i << "] Jer     Pt=" << p4.Pt()
-                      << "  M=" << p4.M() << "\n";
-        }
-
-        // Final
-        p4.SetPtEtaPhiM(nb.Jet_pt[i],
-                        nb.Jet_eta[i],
-                        nb.Jet_phi[i],
-                        nb.Jet_mass[i]);
-        std::cout << " Jet[" << i << "] Corr    Pt=" << p4.Pt()
-                  << "  M=" << p4.M() << "\n";
-
-        met -= p4; // subtract corrected jet
+        correctJet(nb, refs, isData, i, met);
     }
 
     std::cout << "[MET Corr]    Pt = " << met.Pt()
               << "  Phi = " << met.Phi() << "\n\n";
-
-    // update MET in branch
     nb.ChsMET_pt  = met.Pt();
     nb.ChsMET_phi = met.Phi();
 }
@@ -339,8 +336,7 @@ void applySystematicShift(NanoBranches& nb,
     for (UInt_t i = 0; i < nb.nJet; ++i) {
         if (nb.Jet_pt[i] < 15 || std::abs(nb.Jet_eta[i]) > 5.2) continue;
 
-        TLorentzVector p4;
-        p4.SetPtEtaPhiM(nb.Jet_pt[i], nb.Jet_eta[i], nb.Jet_phi[i], nb.Jet_mass[i]);
+        TLorentzVector p4 = makeJetP4(nb, i);
 
         // Evaluate the systematic scale (example signature; replace with correct one)
         double scale = 1.0;
@@ -350,15 +346,12 @@ void applySystematicShift(NanoBranches& nb,
             std::cerr << "Warning: failed to evaluate systematic " << systName
                       << " for jet " << i << ": " << e.what() << "\n";
         }
-        
-        double shift = 1.0;
-        if(systVariation=="Up") shift = (1 + scale);
-        else shift = (1-scale); 
-        nb.Jet_pt[i]   *= shift;
-        nb.Jet_mass[i] *= shift;
+
+        double shift = (systVariation == "Up") ? (1 + scale) : (1 - scale);
+        applyScale(nb, i, p4, shift);
         std::cout << " Jet[" << i << "] Syst    Pt=" << p4.Pt()
-                  << "  systVar=" << systVariation 
-                  << "  scale=" << scale 
+                  << "  systVar=" << systVariation
+                  << "  scale=" << scale
                   << "  shift=" << shift << "\n";
     }
 }
