@@ -1,0 +1,175 @@
+{
+  "2016Pre": {
+    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2016preVFP_UL/fatJet_jerc.json.gz",
+    "tagNameL1FastJet": "Summer19UL16APV_V7_MC_L1FastJet_AK8PFPuppi",
+    "tagNameL2Relative": "Summer19UL16APV_V7_MC_L2Relative_AK8PFPuppi",
+    "tagNameL3Absolute": "Summer19UL16APV_V7_MC_L3Absolute_AK8PFPuppi",
+    "tagNameL2Residual": "Summer19UL16APV_V7_MC_L2Residual_AK8PFPuppi",
+    "tagNameL2L3Residual": "Summer19UL16APV_V7_MC_L2L3Residual_AK8PFPuppi",
+    "tagNamePtResolution": "Summer20UL16APV_JRV3_MC_PtResolution_AK8PFPuppi",
+    "tagNameJerScaleFactor": "Summer20UL16APV_JRV3_MC_ScaleFactor_AK8PFPuppi",
+    "data": {
+      "Era2016PreBCD": {
+        "tagNameL1FastJet": "Summer19UL16APV_RunBCD_V7_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL16APV_RunBCD_V7_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL16APV_RunBCD_V7_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL16APV_RunBCD_V7_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL16APV_RunBCD_V7_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2016PreEF": {
+        "tagNameL1FastJet": "Summer19UL16APV_RunEF_V7_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL16APV_RunEF_V7_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL16APV_RunEF_V7_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL16APV_RunEF_V7_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL16APV_RunEF_V7_DATA_L2L3Residual_AK8PFPuppi"
+      }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL16APV_V7_MC_AbsoluteScale_AK8PFPuppi",
+        "Summer19UL16APV_V7_MC_Fragmentation_AK8PFPuppi"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL16APV_V7_MC_Regrouped_BBEC1_AK8PFPuppi",
+        "Summer19UL16APV_V7_MC_Regrouped_BBEC1_2016_AK8PFPuppi"
+      ]
+    }
+  },
+  "2016Post": {
+    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2016postVFP_UL/fatJet_jerc.json.gz",
+    "tagNameL1FastJet": "Summer19UL16_V7_MC_L1FastJet_AK8PFPuppi",
+    "tagNameL2Relative": "Summer19UL16_V7_MC_L2Relative_AK8PFPuppi",
+    "tagNameL3Absolute": "Summer19UL16_V7_MC_L3Absolute_AK8PFPuppi",
+    "tagNameL2Residual": "Summer19UL16_V7_MC_L2Residual_AK8PFPuppi",
+    "tagNameL2L3Residual": "Summer19UL16_V7_MC_L2L3Residual_AK8PFPuppi",
+    "tagNamePtResolution": "Summer20UL16_JRV3_MC_PtResolution_AK8PFPuppi",
+    "tagNameJerScaleFactor": "Summer20UL16_JRV3_MC_ScaleFactor_AK8PFPuppi",
+    "data": {
+      "Era2016PostFGH": {
+        "tagNameL1FastJet": "Summer19UL16_RunFGH_V7_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL16_RunFGH_V7_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL16_RunFGH_V7_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL16_RunFGH_V7_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL16_RunFGH_V7_DATA_L2L3Residual_AK8PFPuppi"
+      }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL16_V7_MC_AbsoluteScale_AK8PFPuppi",
+        "Summer19UL16_V7_MC_Fragmentation_AK8PFPuppi"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL16_V7_MC_Regrouped_BBEC1_AK8PFPuppi",
+        "Summer19UL16_V7_MC_Regrouped_BBEC1_2016_AK8PFPuppi"
+      ]
+    }
+  },
+  "2017": {
+    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2017_UL/fatJet_jerc.json.gz",
+    "tagNameL1FastJet": "Summer19UL17_V5_MC_L1FastJet_AK8PFPuppi",
+    "tagNameL2Relative": "Summer19UL17_V5_MC_L2Relative_AK8PFPuppi",
+    "tagNameL3Absolute": "Summer19UL17_V5_MC_L3Absolute_AK8PFPuppi",
+    "tagNameL2Residual": "Summer19UL17_V5_MC_L2Residual_AK8PFPuppi",
+    "tagNameL2L3Residual": "Summer19UL17_V5_MC_L2L3Residual_AK8PFPuppi",
+    "tagNamePtResolution": "Summer19UL17_JRV2_MC_PtResolution_AK8PFPuppi",
+    "tagNameJerScaleFactor": "Summer19UL17_JRV2_MC_ScaleFactor_AK8PFPuppi",
+    "data": {
+      "Era2017B": {
+        "tagNameL1FastJet": "Summer19UL17_RunB_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL17_RunB_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL17_RunB_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL17_RunB_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL17_RunB_V5_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2017C": {
+        "tagNameL1FastJet": "Summer19UL17_RunC_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL17_RunC_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL17_RunC_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL17_RunC_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL17_RunC_V5_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2017D": {
+        "tagNameL1FastJet": "Summer19UL17_RunD_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL17_RunD_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL17_RunD_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL17_RunD_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL17_RunD_V5_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2017E": {
+        "tagNameL1FastJet": "Summer19UL17_RunE_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL17_RunE_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL17_RunE_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL17_RunE_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL17_RunE_V5_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2017F": {
+        "tagNameL1FastJet": "Summer19UL17_RunF_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL17_RunF_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL17_RunF_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL17_RunF_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL17_RunF_V5_DATA_L2L3Residual_AK8PFPuppi"
+      }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL17_V5_MC_AbsoluteScale_AK8PFPuppi",
+        "Summer19UL17_V5_MC_Fragmentation_AK8PFPuppi"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL17_V5_MC_Regrouped_BBEC1_AK8PFPuppi",
+        "Summer19UL17_V5_MC_Regrouped_BBEC1_2017_AK8PFPuppi"
+      ]
+    }
+  },
+  "2018": {
+    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2018_UL/fatJet_jerc.json.gz",
+    "tagNameL1FastJet": "Summer19UL18_V5_MC_L1FastJet_AK8PFPuppi",
+    "tagNameL2Relative": "Summer19UL18_V5_MC_L2Relative_AK8PFPuppi",
+    "tagNameL3Absolute": "Summer19UL18_V5_MC_L3Absolute_AK8PFPuppi",
+    "tagNameL2Residual": "Summer19UL18_V5_MC_L2Residual_AK8PFPuppi",
+    "tagNameL2L3Residual": "Summer19UL18_V5_MC_L2L3Residual_AK8PFPuppi",
+    "tagNamePtResolution": "Summer19UL18_JRV2_MC_PtResolution_AK8PFPuppi",
+    "tagNameJerScaleFactor": "Summer19UL18_JRV2_MC_ScaleFactor_AK8PFPuppi",
+    "data": {
+      "Era2018A": {
+        "tagNameL1FastJet": "Summer19UL18_RunA_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL18_RunA_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL18_RunA_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL18_RunA_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL18_RunA_V5_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2018B": {
+        "tagNameL1FastJet": "Summer19UL18_RunB_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL18_RunB_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL18_RunB_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL18_RunB_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL18_RunB_V5_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2018C": {
+        "tagNameL1FastJet": "Summer19UL18_RunC_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL18_RunC_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL18_RunC_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL18_RunC_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL18_RunC_V5_DATA_L2L3Residual_AK8PFPuppi"
+      },
+      "Era2018D": {
+        "tagNameL1FastJet": "Summer19UL18_RunD_V5_DATA_L1FastJet_AK8PFPuppi",
+        "tagNameL2Relative": "Summer19UL18_RunD_V5_DATA_L2Relative_AK8PFPuppi",
+        "tagNameL3Absolute": "Summer19UL18_RunD_V5_DATA_L3Absolute_AK8PFPuppi",
+        "tagNameL2Residual": "Summer19UL18_RunD_V5_DATA_L2Residual_AK8PFPuppi",
+        "tagNameL2L3Residual": "Summer19UL18_RunD_V5_DATA_L2L3Residual_AK8PFPuppi"
+      }
+    },
+    "systematics": {
+      "systOnMcSet1": [
+        "Summer19UL18_V5_MC_AbsoluteScale_AK8PFPuppi",
+        "Summer19UL18_V5_MC_Fragmentation_AK8PFPuppi"
+      ],
+      "systOnMcSet2": [
+        "Summer19UL18_V5_MC_Regrouped_BBEC1_AK8PFPuppi",
+        "Summer19UL18_V5_MC_Regrouped_BBEC1_2018_AK8PFPuppi"
+      ]
+    }
+  }
+}
+

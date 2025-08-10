@@ -62,14 +62,14 @@ class ScaleJetMet:
         self._load_refs()
 
     def _load_config(self):
-        cfg = ReadConfig("configJecAndJvm.json")
+        cfg = ReadConfig("JercFileAndTagNamesAK4.json")
         year = "2018"
         self.jerc_path       = cfg.get_value([year, "jercJsonPath"])
-        self.name_l1         = cfg.get_value([year, "jetL1FastJetName"])
-        self.name_l2         = cfg.get_value([year, "jetL2RelativeName"])
-        self.name_l2resl3res = cfg.get_value([year, "jetL2L3ResidualName"])
-        self.name_jr         = cfg.get_value([year, "JerResoName"])
-        self.name_js         = cfg.get_value([year, "JerSfName"])
+        self.name_l1         = cfg.get_value([year, "tagNameL1FastJet"])
+        self.name_l2         = cfg.get_value([year, "tagNameL2Relative"])
+        self.name_l2resl3res = cfg.get_value([year, "tagNameL2L3Residual"])
+        self.name_jr         = cfg.get_value([year, "tagNamePtResolution"])
+        self.name_js         = cfg.get_value([year, "tagNameJerScaleFactor"])
 
     def _load_refs(self):
         cs = correction.CorrectionSet.from_file(self.jerc_path)
@@ -84,7 +84,7 @@ class ScaleJetMet:
 
         # MET from NanoAOD
         met_nano = ROOT.TLorentzVector()
-        met_nano.SetPtEtaPhiM(tree.ChsMET_pt, 0.0, tree.ChsMET_phi, 0.0)
+        met_nano.SetPtEtaPhiM(tree.MET_pt, 0.0, tree.MET_phi, 0.0)
         print(f"[MET Nano]    Pt = {met_nano.Pt():.3f}  Phi = {met_nano.Phi():.3f}")
 
         met = ROOT.TLorentzVector(met_nano)
@@ -119,7 +119,7 @@ class ScaleJetMet:
                     p4_pt,
                     eta,
                     tree.Jet_area[i],
-                    tree.fixedGridRhoFastjetAll
+                    tree.Rho_fixedGridRhoFastjetAll
                 )
                 p4_pt   *= c1
                 p4_mass *= c1
@@ -153,7 +153,7 @@ class ScaleJetMet:
                 reso = self.corrJerReso.evaluate(
                     p4_pt,
                     eta,
-                    tree.fixedGridRhoFastjetAll
+                    tree.Rho_fixedGridRhoFastjetAll
                 )
                 sf = self.corrJerSf.evaluate(
                     eta,
@@ -177,8 +177,8 @@ class ScaleJetMet:
             met -= p4
 
         print(f"\n[MET Corr]    Pt = {met.Pt():.3f}  Phi = {met.Phi():.3f}\n")
-        tree.ChsMET_pt  = met.Pt()
-        tree.ChsMET_phi = met.Phi()
+        tree.MET_pt  = met.Pt()
+        tree.MET_phi = met.Phi()
 
 
 def main(input_file: str):
