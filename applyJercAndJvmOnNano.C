@@ -119,37 +119,57 @@ void setupNanoBranches(TChain* chain, NanoTree& nanoT, bool isData) {
 }
 
 // 1) Define a Specs (specifications) class for each jet collection
+
 struct AK4Specs {
-  static Float_t  getPt(const NanoTree& nanoT, UInt_t i)       { return nanoT.Jet_pt[i]; }
-  static Float_t  getEta(const NanoTree& nanoT, UInt_t i)      { return nanoT.Jet_eta[i]; }
-  static Float_t  getRawFactor(const NanoTree& nanoT, UInt_t i){ return nanoT.Jet_rawFactor[i]; }
-  static Float_t  getArea(const NanoTree& nanoT, UInt_t i)     { return nanoT.Jet_area[i]; }
-  static TLorentzVector makeTLorentzVector(const NanoTree& nanoT, UInt_t i){
-    TLorentzVector p4;
-    p4.SetPtEtaPhiM(nanoT.Jet_pt[i], nanoT.Jet_eta[i], nanoT.Jet_phi[i], nanoT.Jet_mass[i]);
-    return p4;
+  static Float_t  getPt (const NanoTree& nt, UInt_t i) { return nt.Jet_pt[i];  }
+  static Float_t  getEta(const NanoTree& nt, UInt_t i) { return nt.Jet_eta[i]; }
+  static Float_t  getPhi(const NanoTree& nt, UInt_t i) { return nt.Jet_phi[i]; }
+  static Float_t  getRawFactor(const NanoTree& nt, UInt_t i){ return nt.Jet_rawFactor[i]; }
+  static Float_t  getArea(const NanoTree& nt, UInt_t i)     { return nt.Jet_area[i]; }
+  static TLorentzVector makeTLorentzVector(const NanoTree& nt, UInt_t i){
+    TLorentzVector p4; p4.SetPtEtaPhiM(nt.Jet_pt[i], nt.Jet_eta[i], nt.Jet_phi[i], nt.Jet_mass[i]); return p4;
   }
-  static void applyCorrection(NanoTree& nanoT, UInt_t i, double sf){
-    nanoT.Jet_pt[i]   *= sf;
-    nanoT.Jet_mass[i] *= sf;
+  static void applyCorrection(NanoTree& nt, UInt_t i, double sf){
+    nt.Jet_pt[i]   *= sf;
+    nt.Jet_mass[i] *= sf;
+  }
+
+  // --- Gen matching (AK4)
+  static int      getGenIdx (const NanoTree& nt, UInt_t i) { return nt.Jet_genJetIdx[i]; }
+  static UInt_t   getNGen    (const NanoTree& nt)          { return nt.nGenJet; }
+  static Float_t  getGenPt  (const NanoTree& nt, UInt_t j) { return nt.GenJet_pt[j]; }
+  static Float_t  getGenEta (const NanoTree& nt, UInt_t j) { return nt.GenJet_eta[j]; }
+  static Float_t  getGenPhi (const NanoTree& nt, UInt_t j) { return nt.GenJet_phi[j]; }
+  static bool     isValidGenIdx(const NanoTree& nt, int j){
+    return (j > -1) && (static_cast<UInt_t>(j) < getNGen(nt));
   }
 };
 
 struct AK8Specs {
-  static Float_t  getPt(const NanoTree& nanoT, UInt_t i)       { return nanoT.FatJet_pt[i]; }
-  static Float_t  getEta(const NanoTree& nanoT, UInt_t i)      { return nanoT.FatJet_eta[i]; }
-  static Float_t  getRawFactor(const NanoTree& nanoT, UInt_t i){ return nanoT.FatJet_rawFactor[i]; }
-  static Float_t  getArea(const NanoTree& nanoT, UInt_t i)     { return nanoT.FatJet_area[i]; }
-  static TLorentzVector makeTLorentzVector(const NanoTree& nanoT, UInt_t i){
-    TLorentzVector p4;
-    p4.SetPtEtaPhiM(nanoT.FatJet_pt[i], nanoT.FatJet_eta[i], nanoT.FatJet_phi[i], nanoT.FatJet_mass[i]);
-    return p4;
+  static Float_t  getPt (const NanoTree& nt, UInt_t i) { return nt.FatJet_pt[i];  }
+  static Float_t  getEta(const NanoTree& nt, UInt_t i) { return nt.FatJet_eta[i]; }
+  static Float_t  getPhi(const NanoTree& nt, UInt_t i) { return nt.FatJet_phi[i]; }
+  static Float_t  getRawFactor(const NanoTree& nt, UInt_t i){ return nt.FatJet_rawFactor[i]; }
+  static Float_t  getArea(const NanoTree& nt, UInt_t i)     { return nt.FatJet_area[i]; }
+  static TLorentzVector makeTLorentzVector(const NanoTree& nt, UInt_t i){
+    TLorentzVector p4; p4.SetPtEtaPhiM(nt.FatJet_pt[i], nt.FatJet_eta[i], nt.FatJet_phi[i], nt.FatJet_mass[i]); return p4;
   }
-  static void applyCorrection(NanoTree& nanoT, UInt_t i, double sf){
-    nanoT.FatJet_pt[i]   *= sf;
-    nanoT.FatJet_mass[i] *= sf;
+  static void applyCorrection(NanoTree& nt, UInt_t i, double sf){
+    nt.FatJet_pt[i]   *= sf;
+    nt.FatJet_mass[i] *= sf;
+  }
+
+  // --- Gen matching (AK8)
+  static int      getGenIdx (const NanoTree& nt, UInt_t i) { return nt.FatJet_genJetAK8Idx[i]; }
+  static UInt_t   getNGen    (const NanoTree& nt)          { return nt.nGenJetAK8; }
+  static Float_t  getGenPt  (const NanoTree& nt, UInt_t j) { return nt.GenJetAK8_pt[j]; }
+  static Float_t  getGenEta (const NanoTree& nt, UInt_t j) { return nt.GenJetAK8_eta[j]; }
+  static Float_t  getGenPhi (const NanoTree& nt, UInt_t j) { return nt.GenJetAK8_phi[j]; }
+  static bool     isValidGenIdx(const NanoTree& nt, int j){
+    return (j > -1) && (static_cast<UInt_t>(j) < getNGen(nt));
   }
 };
+
 
 
 // ---------------------------
@@ -226,26 +246,6 @@ Tags getTagNames(const nlohmann::json& baseJson,
     return tags;
 }
 
-using SystSetMap = std::map<std::string, std::vector<std::string>>;
-
-SystSetMap getSystTagNames(const nlohmann::json& baseJson, const std::string& year) {
-    SystSetMap out;
-    if (!baseJson.contains(year)) return out; // empty if missing
-
-    const auto& yearObj = baseJson.at(year);
-    if (!yearObj.contains("systematics")) return out;
-
-    const auto& systs = yearObj.at("systematics");
-    for (auto it = systs.begin(); it != systs.end(); ++it) {
-        const std::string setName = it.key();
-        if (!it.value().is_array()) continue;
-        std::vector<std::string> tags = it.value().get<std::vector<std::string>>();
-        out[setName] = std::move(tags);
-    }
-    return out;
-}
-
-
 correction::Correction::Ref safeGet(const std::shared_ptr<correction::CorrectionSet>& cs,
                                    const std::string& name) 
 {
@@ -290,23 +290,30 @@ struct CorrectionRefs {
     }
 };
 
-// 2) A single templated all nominal corrections
+double deltaR(float eta1, float phi1, float eta2, float phi2) {
+    double dEta = double(eta1) - double(eta2);
+    double dPhi = TVector2::Phi_mpi_pi(phi1 - phi2);
+    return std::abs(std::sqrt(dEta*dEta + dPhi*dPhi));
+}
+
+
+// 2) A single templated nominal corrections, generic over Specs (AK4Specs or AK8Specs) ----
 template<typename Specs>
 void applyNominalCorrections(NanoTree& nanoT,
                        CorrectionRefs& refs,
                        bool isData,
                        const std::vector<UInt_t>& idxs,
-                       bool verbose=false)
+                       bool print=false)
 {
     for(auto idx: idxs){
-        if(verbose) std::cout<<"   [Jet] index="<<idx<<"\n";
-        nanoT.MET_pt += nanoT.Jet_pt[idx];//add MET to jet 
-        if(verbose) std::cout<<"    default NanoAod Pt="<<nanoT.Jet_pt[idx]<<"\n";
+        if(print) std::cout<<"    [Jet] index="<<idx<<"\n";
+        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet 
+        if(print) std::cout<<"      default NanoAod Pt="<<Specs::getPt(nanoT,idx)<<"\n";
 
         // raw correction
         double rawSF = 1.0 - Specs::getRawFactor(nanoT, idx);
         Specs::applyCorrection(nanoT, idx, rawSF);
-        if(verbose) std::cout<<"    after undoing   Pt="<<nanoT.Jet_pt[idx]<<"\n";
+        if(print) std::cout<<"      after undoing   Pt="<<Specs::getPt(nanoT,idx)<<"\n";
 
         // L1
         double c1 = refs.corrL1->evaluate({ Specs::getArea(nanoT,idx),
@@ -314,39 +321,268 @@ void applyNominalCorrections(NanoTree& nanoT,
                                             Specs::getPt(nanoT,idx),
                                             nanoT.Rho });
         Specs::applyCorrection(nanoT, idx, c1);
-        if(verbose) std::cout<<"    after L1    Pt="<<nanoT.Jet_pt[idx]<<"\n";
+        if(print) std::cout<<"      after L1    Pt="<<Specs::getPt(nanoT,idx)<<"\n";
 
         // L2 rel
         double c2 = refs.corrL2->evaluate({ Specs::getEta(nanoT,idx),
                                             Specs::getPt(nanoT,idx) });
         Specs::applyCorrection(nanoT, idx, c2);
-        if(verbose) std::cout<<"    after L2Rel Pt="<<nanoT.Jet_pt[idx]<<"\n";
+        if(print) std::cout<<"      after L2Rel Pt="<<Specs::getPt(nanoT,idx)<<"\n";
 
         // Residual (data only)
         if(isData){
           double cR = refs.corrL2ResL3Res->evaluate({ Specs::getEta(nanoT,idx),
                                                       Specs::getPt(nanoT,idx) });
           Specs::applyCorrection(nanoT, idx, cR);
-          if(verbose) std::cout<<"    after ResL3 Pt="<<nanoT.Jet_pt[idx]<<"\n";
+          if(print) std::cout<<"     after ResL3 Pt="<<Specs::getPt(nanoT,idx)<<"\n";
         }
-
-        // JER smearing (MC only)
-        if(!isData){
-          double reso = refs.corrJerReso->evaluate({ Specs::getEta(nanoT,idx),
-                                                      Specs::getPt(nanoT,idx),
-                                                      nanoT.Rho });
-          double sf   = refs.corrJerSf->evaluate({ Specs::getEta(nanoT,idx),
-                                                    std::string("nom") });
-          refs.randomGen.SetSeed(nanoT.event + nanoT.run + nanoT.luminosityBlock);
-          double smear = std::max(0.0, 1 + refs.randomGen.Gaus(0, reso)
-                                        * std::sqrt(std::max(sf*sf - 1.0, 0.0)));
-          Specs::applyCorrection(nanoT, idx, smear);
-          if(verbose) std::cout<<"    after JER    Pt="<<nanoT.Jet_pt[idx]<<"\n";
-        }
-
-        nanoT.MET_pt -= nanoT.Jet_pt[idx];//substract MET from jet 
+        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet 
     }
 }
+
+
+// ----- JER uncertainty bins from JSON -----
+// One bin entry
+struct JerBin {
+    std::string label;   // e.g. "CMS_res_j_2017_absEta0to1p93_pT0toInf" or "CMS_res_j_2017"
+    double etaMin{}, etaMax{}, ptMin{}, ptMax{};
+};
+
+// map<setName, vector<JerBin>>, e.g. "ShiftedJERFull" -> [bins], "ShiftedJERTotal" -> [1 bin]
+using JerSetMap = std::map<std::string, std::vector<JerBin>>;
+
+static JerSetMap getJerUncertaintySets(const nlohmann::json& baseJson, const std::string& year) {
+    JerSetMap out;
+    if (!baseJson.contains(year)) return out;
+    const auto& y = baseJson.at(year);
+    if (!y.contains("ShiftedJER")) return out;
+
+    const auto& j = y.at("ShiftedJER");
+    for (auto it = j.begin(); it != j.end(); ++it) {
+        const std::string setName = it.key();          // "ShiftedJERFull" or "ShiftedJERTotal"
+        const auto& obj = it.value();                  // object of { label -> {etaMin,...} }
+
+        if (!obj.is_object()) continue;
+        std::vector<JerBin> bins;
+        bins.reserve(obj.size());
+        for (auto it2 = obj.begin(); it2 != obj.end(); ++it2) {
+            const std::string label = it2.key();
+            const auto& def = it2.value();
+            JerBin b;
+            b.label = label;
+            b.etaMin = def.value("etaMin", 0.0);
+            b.etaMax = def.value("etaMax", 999.0);
+            b.ptMin  = def.value("ptMin",  0.0);
+            b.ptMax  = def.value("ptMax",  1e9);
+            bins.push_back(b);
+        }
+        out.emplace(setName, std::move(bins));
+    }
+    return out;
+}
+
+
+//--------------------------------------------------
+// Systematic Uncertanities
+//--------------------------------------------------
+// unchanged
+static TDirectory* getOrMkdir(TDirectory* parent, const std::string& name) {
+    if (!parent) return nullptr;
+    if (auto* d = dynamic_cast<TDirectory*>(parent->Get(name.c_str()))) return d;
+    return parent->mkdir(name.c_str());
+}
+
+// Each entry: { fullTag, base/custom name }
+using SystPair   = std::pair<std::string, std::string>;
+using SystSetMap = std::map<std::string, std::vector<SystPair>>;
+SystSetMap getSystTagNames(const nlohmann::json& baseJson, const std::string& year) {
+    SystSetMap out;
+    if (!baseJson.contains(year)) return out;
+
+    const auto& yearObj = baseJson.at(year);
+    if (!yearObj.contains("ShiftedJES")) return out;
+
+    const auto& systs = yearObj.at("ShiftedJES");
+    for (auto it = systs.begin(); it != systs.end(); ++it) {
+        const std::string setName = it.key();
+        const auto& arr = it.value();
+        if (!arr.is_array()) continue;
+
+        std::vector<SystPair> pairs;
+        pairs.reserve(arr.size());
+
+        for (const auto& item : arr) {
+            if (item.is_array() && item.size() >= 2 && item.at(0).is_string() && item.at(1).is_string()) {
+                pairs.emplace_back(item.at(0).get<std::string>(), item.at(1).get<std::string>());
+            } 
+        }
+
+        out.emplace(setName, std::move(pairs));
+    }
+    return out;
+}
+
+// add a kind flag + optional region for JER
+enum class SystKind { Nominal, JES, JER };
+
+struct SystTagDetail {
+    // JES fields (unchanged)
+    std::string setName;   // e.g. "ShiftedJESFull" or "ShiftedJERFull" (for JER we reuse this)
+    std::string tagAK4;    // JES only
+    std::string tagAK8;    // JES only
+    std::string baseTag;   // JES: CustomName; JER: label (e.g. "CMS_res_j_2017_absEta…")
+    std::string var;       // "Up" / "Down" (empty for nominal)
+    // new:
+    SystKind kind{SystKind::Nominal};
+    std::optional<JerBin> jerRegion;  // only set for JER
+
+    bool isNominal() const { return kind == SystKind::Nominal; }
+    std::string systSetName() const { return isNominal() ? "Nominal" : setName; }
+    std::string systName() const {
+        if (isNominal()) return "Nominal";
+        if (kind == SystKind::JES) return baseTag + "_" + var;
+        // JER: use label_up/down
+        return baseTag + "_" + var;
+    }
+};
+
+
+// s4/s8: map<setName, vector<{fullTag, base/custom}>>
+static std::vector<SystTagDetail> buildSystTagDetails(const SystSetMap& s4,
+                                                      const SystSetMap& s8)
+{
+    std::vector<SystTagDetail> systTagDetails;
+
+    for (const auto& [set, pairs4] : s4) {
+        auto it8 = s8.find(set);
+        if (it8 == s8.end()) continue;  // set must exist for both algos
+        const auto& pairs8 = it8->second;
+
+        // Map base/custom name -> fullTag for each algo
+        std::unordered_map<std::string, std::string> map4, map8;
+        map4.reserve(pairs4.size());
+        map8.reserve(pairs8.size());
+
+        for (const auto& p : pairs4) map4.emplace(p.second, p.first); // key = base/custom
+        for (const auto& p : pairs8) map8.emplace(p.second, p.first);
+
+        // Intersect on base/custom name (2nd element)
+        for (const auto& [base, full4] : map4) {
+            auto itFull8 = map8.find(base);
+            if (itFull8 == map8.end()) continue;
+
+            for (const char* var : {"Up","Down"}) {
+                systTagDetails.push_back(SystTagDetail{
+                    /*setName*/ set,
+                    /*tagAK4*/  full4,
+                    /*tagAK8*/  itFull8->second,
+                    /*baseTag*/ base,   // <-- this is the CustomName
+                    /*var*/     var,
+                    /*kind*/    SystKind::JES,
+                    /*jerRegion*/ std::nullopt
+                });
+            }
+        }
+    }
+    return systTagDetails;
+}
+
+// Build JER details: each (setName, JerBin) × {Up,Down}
+static std::vector<SystTagDetail> buildJerTagDetails(const JerSetMap& jerSets) {
+    std::vector<SystTagDetail> out;
+    for (const auto& [setName, bins] : jerSets) {
+        for (const auto& b : bins) {
+            for (const char* var : {"Up","Down"}) {
+                SystTagDetail d;
+                d.setName   = setName;        // "ShiftedJERFull" or "ShiftedJERTotal"
+                d.tagAK4    = "";             // not used for JER
+                d.tagAK8    = "";             // not used for JER
+                d.baseTag   = b.label;        // the label/key from JSON
+                d.var       = var;
+                d.kind      = SystKind::JER;
+                d.jerRegion = b;
+                out.push_back(std::move(d));
+            }
+        }
+    }
+    return out;
+}
+
+template<typename Specs>
+void applyJEROnly(NanoTree& nanoT,
+                  CorrectionRefs& refs,
+                  const std::vector<UInt_t>& idxs,
+                  const std::string& var,                          // "nom" / "up" / "down"
+                  const std::optional<JerBin>& region = std::nullopt,
+                  bool print=false)
+{
+    if (idxs.empty()) return;
+    // Data: no JER
+    if (std::is_same<Specs, AK4Specs>::value || std::is_same<Specs, AK8Specs>::value) {
+        // ok
+    }
+    // guard: MC only
+    // We assume caller ensures MC; if you prefer, pass isData and early return.
+
+    for (auto idx : idxs) {
+        const double etaJet = Specs::getEta(nanoT, idx);
+        const double ptJet  = Specs::getPt (nanoT, idx);
+        const double phiJet = Specs::getPhi(nanoT, idx);
+
+        // region gating: use |eta|
+        auto inRegion = [&](const JerBin& b){
+            const double aeta = std::fabs(etaJet);
+            return (aeta >= b.etaMin && aeta < b.etaMax &&
+                    ptJet >= b.ptMin   && ptJet < b.ptMax);
+        };
+
+        // choose which var to use for THIS jet
+        std::string useVar = "nom";
+        if (region.has_value()) {
+            useVar = inRegion(*region) ? var : "nom";
+        } else {
+            useVar = var;
+        }
+
+        nanoT.MET_pt += Specs::getPt(nanoT, idx);
+
+        const double reso = refs.corrJerReso->evaluate({ etaJet, ptJet, nanoT.Rho });
+        const double sf   = refs.corrJerSf->evaluate({ etaJet, useVar });
+
+        refs.randomGen.SetSeed(nanoT.event + nanoT.run + nanoT.luminosityBlock);
+
+        const int genIdx = Specs::getGenIdx(nanoT, idx);
+        bool isMatch = false;
+        if (Specs::isValidGenIdx(nanoT, genIdx)) {
+            const double dR = deltaR(phiJet, Specs::getGenPhi(nanoT, genIdx),
+                                     etaJet, Specs::getGenEta(nanoT, genIdx));
+            if (dR < 0.2 &&
+                std::abs(ptJet - Specs::getGenPt(nanoT, genIdx)) < 3.0 * reso * ptJet) {
+                isMatch = true;
+            }
+        }
+
+        double corr = 1.0;
+        if (isMatch) {
+            corr = std::max(0.0, 1.0 + (sf - 1.0) * (ptJet - Specs::getGenPt(nanoT, genIdx)) / ptJet);
+        } else {
+            corr = std::max(0.0, 1.0 + refs.randomGen.Gaus(0.0, reso) *
+                                     std::sqrt(std::max(sf*sf - 1.0, 0.0)));
+        }
+        Specs::applyCorrection(nanoT, idx, corr);
+
+        if (print) {
+            std::cout<<"     JER("<<useVar<<")  Pt="<<Specs::getPt(nanoT, idx);
+            if (region.has_value()) {
+                std::cout<<"   [inRegion="<<(inRegion(*region)?"yes":"no")<<"]";
+            }
+            std::cout<<"\n";
+        }
+
+        nanoT.MET_pt -= Specs::getPt(nanoT, idx);
+    }
+}
+
 
 // 4) Templated systematic shifts
 template<typename Specs>
@@ -360,18 +596,22 @@ void applySystematicShift(NanoTree& nanoT,
 {
     auto systCorr = safeGet(refs.cs, systName);
     for(auto idx: idxs){
-        nanoT.MET_pt += nanoT.Jet_pt[idx];//add MET to jet 
+        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet 
 
-        if(print) std::cout<<"   Nominal corrected    Pt="<<nanoT.Jet_pt[idx]<<"\n";
+        if(print) std::cout<<"    [Jet] index="<<idx<<"\n";
+        if(print) std::cout<<"     Nominal corrected    Pt="<<Specs::getPt(nanoT,idx)<<"\n";
         double scale = systCorr->evaluate({ Specs::getEta(nanoT,idx), Specs::getPt(nanoT,idx) });
         double shift = (var=="Up" ? 1+scale : 1-scale);
         Specs::applyCorrection(nanoT, idx, shift);
-        if(print) std::cout<<"   Syst corrected    Pt="<<nanoT.Jet_pt[idx]<<"\n";
+        if(print) std::cout<<"     Syst corrected    Pt="<<Specs::getPt(nanoT,idx)<<"\n";
 
-        nanoT.MET_pt += nanoT.Jet_pt[idx];//substract MET from jet 
+        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet 
     }
 }
 
+//--------------------------------------------------
+// Jet Veto Map 
+//--------------------------------------------------
 bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::string jvmKeyName, const NanoTree& nanoT){
     const double maxEtaInMap = 5.191;
     const double maxPhiInMap = 3.1415926;
@@ -385,23 +625,10 @@ bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::s
         if ((nanoT.Jet_chEmEF[i] + nanoT.Jet_neEmEF[i]) > 0.9) continue;
 
         // find minimum ΔR to any muon
-        TLorentzVector p4Jet;
-        p4Jet.SetPtEtaPhiM(
-            nanoT.Jet_pt[i],
-            nanoT.Jet_eta[i],
-            nanoT.Jet_phi[i],
-            nanoT.Jet_mass[i]
-        );
         double minDr = std::numeric_limits<double>::infinity();
         for (UInt_t iMu = 0; iMu < nanoT.nMuon; ++iMu) {
-            TLorentzVector p4Mu;
-            p4Mu.SetPtEtaPhiM(
-                nanoT.Muon_pt[iMu],
-                nanoT.Muon_eta[iMu],
-                nanoT.Muon_phi[iMu],
-                nanoT.Muon_mass[iMu]  // or a fixed muon mass if you don't have this branch
-            );
-            double dr = p4Jet.DeltaR(p4Mu);
+            double dr = deltaR(nanoT.Jet_eta[i], nanoT.Jet_phi[i], 
+                                                  nanoT.Muon_eta[iMu], nanoT.Muon_phi[iMu]);
             if (dr < minDr) minDr = dr;
             if (minDr < 0.2) break; // skip other muons since we found an overlapping muon
         }
@@ -420,71 +647,9 @@ bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::s
     return vetoEvent;
 }
 
-
-// Request applied to BOTH algos in one pass
-struct SystTagDetail {
-    std::string setName;   // e.g. "systOnMcSet1" (empty => Nominal)
-    std::string tagAK4;    // full AK4 tag, e.g. "Summer19UL18_V5_MC_AbsoluteScale_AK4PFchs"
-    std::string tagAK8;    // full AK8 tag, e.g. "Summer19UL18_V5_MC_AbsoluteScale_AK8PFPuppi"
-    std::string baseTag;   // e.g. "AbsoluteScale", "Regrouped_BBEC1_2018"
-    std::string var;       // "Up" / "Down"
-
-    bool isNominal() const { return setName.empty(); }
-    std::string systSetName() const { return isNominal() ? "Nominal" : setName; }
-    std::string systName() const { return isNominal() ? "Nominal" : (baseTag + "_" + var); }
-};
-
-// unchanged
-static TDirectory* getOrMkdir(TDirectory* parent, const std::string& name) {
-    if (!parent) return nullptr;
-    if (auto* d = dynamic_cast<TDirectory*>(parent->Get(name.c_str()))) return d;
-    return parent->mkdir(name.c_str());
-}
-
-static std::string baseSystTag(std::string s) {
-    // drop leading "..._MC_"
-    if (auto p = s.find("_MC_"); p != std::string::npos) s = s.substr(p + 4);
-    // drop trailing "_AK..." (algo & particle-flow flavor)
-    if (auto p = s.rfind("_AK"); p != std::string::npos) s = s.substr(0, p);
-    return s; // e.g. "AbsoluteScale", "Regrouped_BBEC1_2018"
-}
-
-// s4/s8: map<setName, vector<fullTag>>
-static std::vector<SystTagDetail> buildSystTagDetails(const SystSetMap& s4,
-                                                            const SystSetMap& s8)
-{
-    std::vector<SystTagDetail> systTagDetails;
-
-    for (const auto& [set, tags4] : s4) {
-        auto it8 = s8.find(set);
-        if (it8 == s8.end()) continue;  // set must exist for both algos
-
-        // map baseTag -> fullTag for each algo
-        std::unordered_map<std::string, std::string> map4, map8;
-        for (const auto& t : tags4)            map4.emplace(baseSystTag(t), t);
-        for (const auto& t : it8->second)      map8.emplace(baseSystTag(t), t);
-
-        // intersect on baseTag
-        for (const auto& [base, full4] : map4) {
-            auto itFull8 = map8.find(base);
-            if (itFull8 == map8.end()) continue;
-
-            for (const char* var : {"Up","Down"}) {
-                systTagDetails.push_back(SystTagDetail{
-                    /*setName*/ set,
-                    /*tagAK4*/  full4,
-                    /*tagAK8*/  itFull8->second,
-                    /*baseTag*/ base,
-                    /*var*/     var
-                });
-            }
-        }
-    }
-    return systTagDetails;
-}
-
-
-// ===== 3) Hists contain BOTH algos; optional *_Nano only once =====
+//--------------------------------------------------
+// Store Histograms for Sanity Checks 
+//--------------------------------------------------
 struct Hists {
     TH1F* hJetPt_AK4_Nano{};
     TH1F* hJetPt_AK8_Nano{};
@@ -512,17 +677,19 @@ static Hists makeHists(TFile& fout,
 
     Hists h{};
     if (alsoNano) {
-        h.hJetPt_AK4_Nano = new TH1F("hJetPt_AK4_Nano", "", 50, 0, 500);
-        h.hJetPt_AK8_Nano = new TH1F("hJetPt_AK8_Nano", "", 50, 0, 500);
-        h.hMET_Nano       = new TH1F("hMET_Nano",       "", 50, 0, 500);
+        h.hJetPt_AK4_Nano = new TH1F("hJetPt_AK4_Nano", "", 50, 10, 510);
+        h.hJetPt_AK8_Nano = new TH1F("hJetPt_AK8_Nano", "", 50, 10, 510);
+        h.hMET_Nano       = new TH1F("hMET_Nano",       "", 50, 10, 510);
     }
-    h.hJetPt_AK4 = new TH1F("hJetPt_AK4", "", 50, 0, 500);
-    h.hJetPt_AK8 = new TH1F("hJetPt_AK8", "", 50, 0, 500);
-    h.hMET       = new TH1F("hMET",       "", 50, 0, 500);
+    h.hJetPt_AK4 = new TH1F("hJetPt_AK4", "", 50, 10, 510);
+    h.hJetPt_AK8 = new TH1F("hJetPt_AK8", "", 50, 10, 510);
+    h.hMET       = new TH1F("hMET",       "", 50, 10, 510);
     return h;
 }
 
-// ===== 4) Single-pass over Events: apply to BOTH AK4 & AK8 =====
+//--------------------------------------------------
+// Events are looped in this function 
+//--------------------------------------------------
 static void processEvents(const std::string& inputFile,
                               TFile& fout,
                               const std::string& year,
@@ -559,62 +726,117 @@ static void processEvents(const std::string& inputFile,
 
     const Long64_t nEntries = chain.GetEntries();
     int countVeto = 0;
-    bool print = true;
+    int printCount = 0;
+    bool print = false;
     for (Long64_t i = 0; i < nEntries; ++i) {
         if (chain.LoadTree(i) < 0) break;
         chain.GetTree()->GetEntry(i);
 
         if (writeNano && H.hMET_Nano) H.hMET_Nano->Fill(nanoT.MET_pt);
-        if(print) std::cout<<"   MET from NanoAOD = "<<nanoT.MET_pt<<'\n';
 
-        // Select indices
+        // --- select jet indices (unchanged, your overlap logic)
         std::vector<UInt_t> indicesAK4; indicesAK4.reserve(nanoT.nJet);
         std::vector<UInt_t> indicesAK8; indicesAK8.reserve(nanoT.nFatJet);
 
-        for (UInt_t j=0; j<nanoT.nJet; ++j) {
-            if (nanoT.Jet_pt[j] < 15 || std::abs(nanoT.Jet_eta[j]) > 5.2) continue;
-            indicesAK4.push_back(j);
-            if (writeNano && H.hJetPt_AK4_Nano) H.hJetPt_AK4_Nano->Fill(nanoT.Jet_pt[j]);
-        }
-        for (UInt_t j=0; j<nanoT.nFatJet; ++j) {
-            if (nanoT.FatJet_pt[j] < 15 || std::abs(nanoT.FatJet_eta[j]) > 5.2) continue;
+        // AK8
+        for (UInt_t j = 0; j < nanoT.nFatJet; ++j) {
+            if (nanoT.FatJet_pt[j] < 100 || std::abs(nanoT.FatJet_eta[j]) > 5.2) continue;
             indicesAK8.push_back(j);
             if (writeNano && H.hJetPt_AK8_Nano) H.hJetPt_AK8_Nano->Fill(nanoT.FatJet_pt[j]);
         }
-
-        // --- Nominal to BOTH
-        applyNominalCorrections<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, print);
-        applyNominalCorrections<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, print);
-        if(print) std::cout<<"   MET after Nominal JERC = "<<nanoT.MET_pt<<'\n';
-
-        // --- Systematic (MC only) to BOTH
-        if (!systTagDetail.isNominal() && !isData) {
-            // NOTE: Each algo reads its OWN JSON; same (set, tag, var) name, no union.
-            applySystematicShift<AK4Specs>(nanoT, refsAK4, systTagDetail.tagAK4, systTagDetail.var, indicesAK4, print);
-            applySystematicShift<AK8Specs>(nanoT, refsAK8, systTagDetail.tagAK8, systTagDetail.var, indicesAK8, print);
-            if(print) std::cout<<"   MET after Systematic JERC = "<<nanoT.MET_pt<<'\n';
+        // AK4 non-overlapping
+        for (UInt_t j = 0; j < nanoT.nJet; ++j) {
+            if (nanoT.Jet_pt[j] < 15 || std::abs(nanoT.Jet_eta[j]) > 5.2) continue;
+            bool overlaps = false;
+            for (auto k : indicesAK8) {
+                if (deltaR(nanoT.Jet_eta[j], nanoT.Jet_phi[j],
+                           nanoT.FatJet_eta[k], nanoT.FatJet_phi[k]) < 0.6) {
+                    overlaps = true; break;
+                }
+            }
+            if (overlaps) continue;
+            indicesAK4.push_back(j);
+            if (writeNano && H.hJetPt_AK4_Nano) H.hJetPt_AK4_Nano->Fill(nanoT.Jet_pt[j]);
         }
+
+        if(!indicesAK4.empty() && !indicesAK8.empty() && printCount==0){ printCount++; print = true; }
+
+        if(print) std::cout<<"   MET From NanoAOD = "<<nanoT.MET_pt<<'\n';
+
+        // =========================
+        // 1) JES (nominal only here) — NO JER inside
+        // =========================
+        if(print) std::cout<<"   AK4 (JES nominal)\n";
+        applyNominalCorrections<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, print);
+
+        if(print) std::cout<<"   AK8 (JES nominal)\n";
+        applyNominalCorrections<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, print);
+
+        if(print) std::cout<<"   MET After (JES nominal) = "<<nanoT.MET_pt<<'\n';
+
+        // =========================
+        // 2) JES Uncertainty (MC only), if this pass is JES
+        // =========================
+        if (!isData && systTagDetail.kind == SystKind::JES) {
+            if(print) std::cout<<"   AK4 (JES "<<systTagDetail.var<<")\n";
+            applySystematicShift<AK4Specs>(nanoT, refsAK4, systTagDetail.tagAK4, systTagDetail.var, indicesAK4, print);
+
+            if(print) std::cout<<"   AK8 (JES "<<systTagDetail.var<<")\n";
+            applySystematicShift<AK8Specs>(nanoT, refsAK8, systTagDetail.tagAK8, systTagDetail.var, indicesAK8, print);
+
+            if(print) std::cout<<"   MET After (JES "<<systTagDetail.var<<") = "<<nanoT.MET_pt<<'\n';
+        }
+
+        // =========================
+        // 3) JER (after all JES): Nominal or Up/Down in region (MC only)
+        // =========================
+        if (!isData) {
+            if (systTagDetail.kind == SystKind::JER) {
+                // up/down only in the specified region; outside region use "nom"
+                if(print) std::cout<<"   AK4 (JER "<<systTagDetail.var<<")\n";
+                applyJEROnly<AK4Specs>(nanoT, refsAK4, indicesAK4, 
+                                       std::string(systTagDetail.var == "Up" ? "up":"down"),
+                                       systTagDetail.jerRegion, print);
+
+                if(print) std::cout<<"   AK8 (JER "<<systTagDetail.var<<")\n";
+                applyJEROnly<AK8Specs>(nanoT, refsAK8, indicesAK8, 
+                                       std::string(systTagDetail.var == "Up" ? "up":"down"),
+                                       systTagDetail.jerRegion, print);
+                if(print) std::cout<<"   MET After (JER "<<systTagDetail.var<<") = "<<nanoT.MET_pt<<'\n';
+            } else {
+                // Nominal or JES pass → apply JER(nom) to all jets
+                if(print) std::cout<<"   AK4 (JER nom)\n";
+                applyJEROnly<AK4Specs>(nanoT, refsAK4, indicesAK4, "nom", std::nullopt, print);
+                if(print) std::cout<<"   AK8 (JER nom)\n";
+                applyJEROnly<AK8Specs>(nanoT, refsAK8, indicesAK8, "nom", std::nullopt, print);
+                if(print) std::cout<<"   MET After (JER nominal) = "<<nanoT.MET_pt<<'\n';
+            }
+        }
+
+        if(print) std::cout<<"   MET after JERC = "<<nanoT.MET_pt<<'\n';
         print = false;
 
-        // Fill hists for BOTH algos
+        // Fill hists
         for (auto idx : indicesAK4) H.hJetPt_AK4->Fill(nanoT.Jet_pt[idx]);
         for (auto idx : indicesAK8) H.hJetPt_AK8->Fill(nanoT.FatJet_pt[idx]);
         H.hMET->Fill(nanoT.MET_pt);
 
-        // Jet veto map (unchanged policy)
+        // Jet veto map
         if (checkIfAnyJetInVetoRegion(jvmRef, jvmKey, nanoT)) {
             countVeto++;
             continue;
         }
 
-        // ... further analysis for this pass ...
-    }//Event loop
+        // ... further analysis ...
+    }
 
     std::cout<<"   Number of events vetoed due to JetVetoMap: "<<countVeto<<'\n';
-
 }
 
-// ===== 5) Public API: 1x Nominal (both), then correlated systematics (both) =====
+
+//--------------------------------------------------
+// Event looping function is called for Nominal and Systematics
+//--------------------------------------------------
 void processEventsWithNominalAndSyst(const std::string& inputFile,
                                      TFile& fout,
                                      const std::string& year,
@@ -624,30 +846,39 @@ void processEventsWithNominalAndSyst(const std::string& inputFile,
     auto cfgAK4 = loadJsonConfig("JercFileAndTagNamesAK4.json");
     auto cfgAK8 = loadJsonConfig("JercFileAndTagNamesAK8.json");
 
-    // Resolve systematic menus independently (no union), then intersect
+    // JES sets (unchanged)
     SystSetMap s4 = getSystTagNames(cfgAK4, year);
     SystSetMap s8 = getSystTagNames(cfgAK8, year);
 
-    // Nominal: one pass applies to BOTH algos
-    std::cout<<" [Nominal] "<<'\n';
+    // JER sets (read once; we can use AK4 file as the source of binning)
+    JerSetMap jerSets = getJerUncertaintySets(cfgAK4, year);
+
+    // 0) Nominal
+    std::cout<<" [Nominal]\n";
     processEvents(inputFile, fout, year, isData, era, SystTagDetail{/*Nominal*/});
 
-
-    // Correlated systematics (MC only): run only where BOTH algos define (set, tag)
     if (!isData) {
-        auto systTagDetails = buildSystTagDetails(s4, s8);
-        for (const auto& systTagDetail : systTagDetails) {
-            std::cout<<"\n [Syst]: "<<systTagDetail.systName()<<'\n';
-            processEvents(inputFile, fout, year, false, era, systTagDetail);
+        // 1) Correlated JES systematics (only where both algos define the same custom base)
+        auto jesDetails = buildSystTagDetails(s4, s8);
+        for (const auto& d : jesDetails) {
+            std::cout<<"\n [JES Syst]: "<<d.systName()<<'\n';
+            processEvents(inputFile, fout, year, false, era, d);
+        }
+
+        // 2) JER systematics (Up/Down) with region gating from JSON
+        auto jerDetails = buildJerTagDetails(jerSets);
+        for (const auto& d : jerDetails) {
+            std::cout<<"\n [JER Syst]: "<<d.systSetName()<<"/"<<d.systName()<<'\n';
+            processEvents(inputFile, fout, year, false, era, d);
         }
     }
 }
 
 
 
-// ---------------------------
-// Example batch driver
-// ---------------------------
+//--------------------------------------------------
+// Run for multiple years, MC, Data 
+//--------------------------------------------------
 void applyJercAndJvmOnNano() {
     const std::string fInputData = "NanoAod_Data.root";
     const std::string fInputMc   = "NanoAod_MC.root";
@@ -673,7 +904,7 @@ void applyJercAndJvmOnNano() {
 
     for (const auto& [year, era] : dataConfigs) {
         std::cout<<"\n[Data] : "<<year <<" : "<<era <<'\n';
-        processEventsWithNominalAndSyst(fInputData, fout, year, /*isData=*/true, era);
+        //processEventsWithNominalAndSyst(fInputData, fout, year, /*isData=*/true, era);
     }
 
     fout.Write();
