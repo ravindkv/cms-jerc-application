@@ -741,6 +741,63 @@ void applySystematicShift(NanoTree& nanoT,
 }
 
 //--------------------------------------------------
+// Jet selection helpers
+//--------------------------------------------------
+
+/**
+ * Fill a histogram only if the pointer is non-null.  This avoids repeated
+ * null checks at the call site and centralises the behaviour in a single
+ * function.
+ */
+inline void fillHist(TH1F* h, double x) {
+    if (h) h->Fill(x);
+}
+
+/**
+ * Collect indices of AK8 jets passing basic kinematic requirements.  The
+ * NanoAOD values are optionally filled into the monitoring histogram.
+ */
+std::vector<UInt_t> collectAK8Jets(const NanoTree& nanoT, TH1F* hNano) {
+    std::vector<UInt_t> idxs;
+    idxs.reserve(nanoT.nFatJet);
+    for (UInt_t j = 0; j < nanoT.nFatJet; ++j) {
+        if (nanoT.FatJet_pt[j] < 100 || std::abs(nanoT.FatJet_eta[j]) > 5.2)
+            continue;
+        idxs.push_back(j);
+        fillHist(hNano, nanoT.FatJet_pt[j]);
+    }
+    return idxs;
+}
+
+/**
+ * Collect indices of AK4 jets that do not overlap with any selected AK8 jet.
+ * Jets failing the basic kinematic requirements are discarded.  If provided, a
+ * histogram of the NanoAOD jet \f$p_T\f$ is filled.
+ */
+std::vector<UInt_t> collectAK4Jets(const NanoTree& nanoT,
+                                   const std::vector<UInt_t>& ak8Idxs,
+                                   TH1F* hNano) {
+    std::vector<UInt_t> idxs;
+    idxs.reserve(nanoT.nJet);
+    for (UInt_t j = 0; j < nanoT.nJet; ++j) {
+        if (nanoT.Jet_pt[j] < 15 || std::abs(nanoT.Jet_eta[j]) > 5.2)
+            continue;
+        bool overlaps = false;
+        for (auto k : ak8Idxs) {
+            if (deltaR(nanoT.Jet_eta[j], nanoT.Jet_phi[j],
+                       nanoT.FatJet_eta[k], nanoT.FatJet_phi[k]) < 0.6) {
+                overlaps = true;
+                break;
+            }
+        }
+        if (overlaps) continue;
+        idxs.push_back(j);
+        fillHist(hNano, nanoT.Jet_pt[j]);
+    }
+    return idxs;
+}
+
+//--------------------------------------------------
 // Jet Veto Map
 //--------------------------------------------------
 /**
@@ -881,32 +938,11 @@ static void processEvents(const std::string& inputFile,
         if (chain.LoadTree(i) < 0) break;
         chain.GetTree()->GetEntry(i);
 
-        if (writeNano && H.hMET_Nano) H.hMET_Nano->Fill(nanoT.MET_pt);
+        fillHist(H.hMET_Nano, nanoT.MET_pt);
 
-        // --- select jet indices (unchanged, your overlap logic)
-        std::vector<UInt_t> indicesAK4; indicesAK4.reserve(nanoT.nJet);
-        std::vector<UInt_t> indicesAK8; indicesAK8.reserve(nanoT.nFatJet);
-
-        // AK8
-        for (UInt_t j = 0; j < nanoT.nFatJet; ++j) {
-            if (nanoT.FatJet_pt[j] < 100 || std::abs(nanoT.FatJet_eta[j]) > 5.2) continue;
-            indicesAK8.push_back(j);
-            if (writeNano && H.hJetPt_AK8_Nano) H.hJetPt_AK8_Nano->Fill(nanoT.FatJet_pt[j]);
-        }
-        // AK4 non-overlapping
-        for (UInt_t j = 0; j < nanoT.nJet; ++j) {
-            if (nanoT.Jet_pt[j] < 15 || std::abs(nanoT.Jet_eta[j]) > 5.2) continue;
-            bool overlaps = false;
-            for (auto k : indicesAK8) {
-                if (deltaR(nanoT.Jet_eta[j], nanoT.Jet_phi[j],
-                           nanoT.FatJet_eta[k], nanoT.FatJet_phi[k]) < 0.6) {
-                    overlaps = true; break;
-                }
-            }
-            if (overlaps) continue;
-            indicesAK4.push_back(j);
-            if (writeNano && H.hJetPt_AK4_Nano) H.hJetPt_AK4_Nano->Fill(nanoT.Jet_pt[j]);
-        }
+        // --- select jet indices using helper functions
+        auto indicesAK8 = collectAK8Jets(nanoT, H.hJetPt_AK8_Nano);
+        auto indicesAK4 = collectAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
 
         if(!indicesAK4.empty() && !indicesAK8.empty() && printCount==0){ printCount++; print = true; }
 
