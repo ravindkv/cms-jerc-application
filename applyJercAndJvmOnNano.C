@@ -1,4 +1,25 @@
-//applyJercAndJvmOnNano.C 
+/**
+ * @file applyJercAndJvmOnNano.C
+ * @brief Example ROOT macro demonstrating how to apply jet energy corrections
+ *        (JEC), jet energy resolution smearing (JER) and the jet veto map on
+ *        NanoAOD samples.
+ *
+ * The macro reads a NanoAOD ROOT file, loads the appropriate correction and
+ * resolution factors from JSON files via `correctionlib`, and writes a ROOT
+ * file containing histograms of the corrected jet and MET quantities.  Both
+ * Monte Carlo and data workflows are supported.
+ *
+ * Typical usage from a CMSSW environment:
+ *
+ * ```
+ * cmsenv
+ * root -b -q applyJercAndJvmOnNano.C
+ * ```
+ *
+ * The entry point is the function `applyJercAndJvmOnNano()` defined at the end
+ * of this file which configures the years and input files to process.
+ */
+//applyJercAndJvmOnNano.C
 
 #if defined(__CLING__)
 #pragma cling add_include_path("$HOME/.local/lib/python3.9/site-packages/correctionlib/include")
@@ -29,6 +50,11 @@
 // ---------------------------
 // NanoAOD flat branches
 // ---------------------------
+/**
+ * POD structure mirroring the subset of NanoAOD branches accessed in this
+ * macro.  Arrays are sized to the maximum expected number of objects so that
+ * the event can be read directly into C++ types.
+ */
 struct NanoTree {
     UInt_t    run{};
     UInt_t    luminosityBlock{};
@@ -72,6 +98,15 @@ struct NanoTree {
     Bool_t Muon_tightId[100]{};
 };
 
+/**
+ * Attach the branches of the given \c TChain to the fields of a \c NanoTree
+ * instance.  Only the branches needed for the corrections are connected.  For
+ * data samples the generator level branches are omitted.
+ *
+ * @param chain  Input chain containing the NanoAOD tree.
+ * @param nanoT  Structure that will receive the branch addresses.
+ * @param isData Set to \c true for data samples to skip MC-only branches.
+ */
 void setupNanoBranches(TChain* chain, NanoTree& nanoT, bool isData) {
     chain->SetBranchStatus("*", true);
     chain->SetBranchAddress("run", &nanoT.run);
@@ -120,6 +155,11 @@ void setupNanoBranches(TChain* chain, NanoTree& nanoT, bool isData) {
 
 // 1) Define a Specs (specifications) class for each jet collection
 
+/**
+ * Accessor helpers for AK4 jets.  The correction routines are written to be
+ * generic over the jet collection and rely on these functions to read and
+ * modify the appropriate NanoTree fields.
+ */
 struct AK4Specs {
   static Float_t  getPt (const NanoTree& nt, UInt_t i) { return nt.Jet_pt[i];  }
   static Float_t  getEta(const NanoTree& nt, UInt_t i) { return nt.Jet_eta[i]; }
@@ -145,6 +185,9 @@ struct AK4Specs {
   }
 };
 
+/**
+ * Accessor helpers for AK8 jets used by the templated correction routines.
+ */
 struct AK8Specs {
   static Float_t  getPt (const NanoTree& nt, UInt_t i) { return nt.FatJet_pt[i];  }
   static Float_t  getEta(const NanoTree& nt, UInt_t i) { return nt.FatJet_eta[i]; }
@@ -175,6 +218,11 @@ struct AK8Specs {
 // ---------------------------
 // JSON / Tag helpers
 // ---------------------------
+/**
+ * Container for the various tag names needed to look up JEC and JER
+ * corrections from the JSON files.  The exact tags depend on year, data/MC
+ * state and era.
+ */
 struct Tags {
     std::string jercJsonPath;
     std::string tagNameL1FastJet;
@@ -186,6 +234,9 @@ struct Tags {
     std::string tagNameJerScaleFactor;
 };
 
+/**
+ * Read a JSON configuration file from disk.
+ */
 nlohmann::json loadJsonConfig(const std::string& filename) {
     std::ifstream f(filename);
     if (!f.is_open()) {
@@ -196,6 +247,10 @@ nlohmann::json loadJsonConfig(const std::string& filename) {
     return j;
 }
 
+/**
+ * Helper to extract a string field from a JSON object, throwing a
+ * \c runtime_error if the key is missing.
+ */
 std::string getTagName(const nlohmann::json& obj, const std::string& key) {
     if (!obj.contains(key)) {
         throw std::runtime_error("Missing required key in JSON: " + key);
@@ -203,11 +258,15 @@ std::string getTagName(const nlohmann::json& obj, const std::string& key) {
     return obj.at(key).get<std::string>();
 }
 
+/**
+ * Gather all relevant tag names for a given year and data-taking scenario.
+ * For data the specific era must be provided to select the proper tags.
+ */
 Tags getTagNames(const nlohmann::json& baseJson,
                  const std::string& year,
                  bool isData,
-                 const std::optional<std::string>& era) 
-{
+                 const std::optional<std::string>& era)
+{ 
     if (!baseJson.contains(year)) {
         throw std::runtime_error("Year key not found in JSON: " + year);
     }
@@ -246,8 +305,12 @@ Tags getTagNames(const nlohmann::json& baseJson,
     return tags;
 }
 
+/**
+ * Retrieve a correction from a \c CorrectionSet and turn any exception into a
+ * descriptive \c runtime_error.
+ */
 correction::Correction::Ref safeGet(const std::shared_ptr<correction::CorrectionSet>& cs,
-                                   const std::string& name) 
+                                   const std::string& name)
 {
     try {
         return cs->at(name);
@@ -260,6 +323,11 @@ correction::Correction::Ref safeGet(const std::shared_ptr<correction::Correction
 // ---------------------------
 // Correction references and application (flattened)
 // ---------------------------
+/**
+ * Convenience wrapper that caches the correction objects needed for a given
+ * year/era.  The underlying \c CorrectionSet is cached across calls to avoid
+ * repeatedly opening the same JSON file.
+ */
 struct CorrectionRefs {
     std::shared_ptr<correction::CorrectionSet> cs;
     correction::Correction::Ref corrL1;
@@ -290,6 +358,10 @@ struct CorrectionRefs {
     }
 };
 
+/**
+ * Compute the distance \f$\Delta R\f$ between two objects given their \c eta and
+ * \c phi coordinates.
+ */
 double deltaR(float eta1, float phi1, float eta2, float phi2) {
     double dEta = double(eta1) - double(eta2);
     double dPhi = TVector2::Phi_mpi_pi(phi1 - phi2);
@@ -298,6 +370,18 @@ double deltaR(float eta1, float phi1, float eta2, float phi2) {
 
 
 // 2) A single templated nominal corrections, generic over Specs (AK4Specs or AK8Specs) ----
+/**
+ * Apply the nominal jet energy corrections (undo raw factors, L1, L2 and
+ * optionally the residual step for data) to a set of jet indices.
+ *
+ * @tparam Specs  Helper struct describing how to access a particular jet
+ *                collection (e.g. AK4 or AK8).
+ * @param nanoT   Event record to modify.
+ * @param refs    Pre-loaded correction references.
+ * @param isData  Whether the event comes from data (controls residual step).
+ * @param idxs    Indices of jets to correct.
+ * @param print   When true, print debug information for the first event.
+ */
 template<typename Specs>
 void applyNominalCorrections(NanoTree& nanoT,
                        CorrectionRefs& refs,
@@ -343,14 +427,23 @@ void applyNominalCorrections(NanoTree& nanoT,
 
 // ----- JER uncertainty bins from JSON -----
 // One bin entry
+/**
+ * Definition of a single JER uncertainty bin as provided in the JSON config.
+ * The bin is identified by a label and optionally restricted to a region in
+ * \f$\eta\f$ and \f$p_T\f$.
+ */
 struct JerBin {
     std::string label;   // e.g. "CMS_res_j_2017_absEta0to1p93_pT0toInf" or "CMS_res_j_2017"
     double etaMin{}, etaMax{}, ptMin{}, ptMax{};
 };
 
-// map<setName, vector<JerBin>>, e.g. "ShiftedJERFull" -> [bins], "ShiftedJERTotal" -> [1 bin]
+// Map<setName, vector<JerBin>>, e.g. "ShiftedJERFull" -> [bins], "ShiftedJERTotal" -> [1 bin]
 using JerSetMap = std::map<std::string, std::vector<JerBin>>;
 
+/**
+ * Parse the JER uncertainty definitions from the JSON configuration for a
+ * given year.
+ */
 static JerSetMap getJerUncertaintySets(const nlohmann::json& baseJson, const std::string& year) {
     JerSetMap out;
     if (!baseJson.contains(year)) return out;
@@ -395,6 +488,11 @@ static TDirectory* getOrMkdir(TDirectory* parent, const std::string& name) {
 // Each entry: { fullTag, base/custom name }
 using SystPair   = std::pair<std::string, std::string>;
 using SystSetMap = std::map<std::string, std::vector<SystPair>>;
+
+/**
+ * Extract the JES systematic tag names for a given year from the JSON
+ * configuration.
+ */
 SystSetMap getSystTagNames(const nlohmann::json& baseJson, const std::string& year) {
     SystSetMap out;
     if (!baseJson.contains(year)) return out;
@@ -425,6 +523,11 @@ SystSetMap getSystTagNames(const nlohmann::json& baseJson, const std::string& ye
 // add a kind flag + optional region for JER
 enum class SystKind { Nominal, JES, JER };
 
+/**
+ * Description of a single systematic variation to be applied.  For JES
+ * systematics it stores the tags for AK4 and AK8 corrections, while for JER
+ * systematics it records the affected `JerBin` region.
+ */
 struct SystTagDetail {
     // JES fields (unchanged)
     std::string setName;   // e.g. "ShiftedJESFull" or "ShiftedJERFull" (for JER we reuse this)
@@ -448,6 +551,10 @@ struct SystTagDetail {
 
 
 // s4/s8: map<setName, vector<{fullTag, base/custom}>>
+/**
+ * Combine the JES systematic tag information for AK4 and AK8 jets.  Only
+ * systematics defined for both algorithms are returned.
+ */
 static std::vector<SystTagDetail> buildSystTagDetails(const SystSetMap& s4,
                                                       const SystSetMap& s8)
 {
@@ -488,6 +595,10 @@ static std::vector<SystTagDetail> buildSystTagDetails(const SystSetMap& s4,
 }
 
 // Build JER details: each (setName, JerBin) × {Up,Down}
+/**
+ * Expand the JER uncertainty definition into explicit up/down variations for
+ * each bin defined in the JSON configuration.
+ */
 static std::vector<SystTagDetail> buildJerTagDetails(const JerSetMap& jerSets) {
     std::vector<SystTagDetail> out;
     for (const auto& [setName, bins] : jerSets) {
@@ -508,6 +619,11 @@ static std::vector<SystTagDetail> buildJerTagDetails(const JerSetMap& jerSets) {
     return out;
 }
 
+/**
+ * Apply JER smearing or its variations to a set of jets.  When a region is
+ * provided the smearing is only modified for jets inside that bin, while jets
+ * outside keep the nominal scale factors.
+ */
 template<typename Specs>
 void applyJEROnly(NanoTree& nanoT,
                   CorrectionRefs& refs,
@@ -585,6 +701,10 @@ void applyJEROnly(NanoTree& nanoT,
 
 
 // 4) Templated systematic shifts
+/**
+ * Apply a JES systematic variation.  The specific correction is selected by
+ * \p systName and scaled up or down according to \p var.
+ */
 template<typename Specs>
 void applySystematicShift(NanoTree& nanoT,
                           CorrectionRefs& refs,
@@ -610,8 +730,12 @@ void applySystematicShift(NanoTree& nanoT,
 }
 
 //--------------------------------------------------
-// Jet Veto Map 
+// Jet Veto Map
 //--------------------------------------------------
+/**
+ * Check whether any reconstructed jet falls inside a jet veto region as
+ * defined by the provided correction map.
+ */
 bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::string jvmKeyName, const NanoTree& nanoT){
     const double maxEtaInMap = 5.191;
     const double maxPhiInMap = 3.1415926;
@@ -648,8 +772,13 @@ bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::s
 }
 
 //--------------------------------------------------
-// Store Histograms for Sanity Checks 
+// Store Histograms for Sanity Checks
 //--------------------------------------------------
+/**
+ * Small collection of histograms used to monitor the effect of the
+ * corrections.  When running the nominal pass additional histograms containing
+ * the uncorrected NanoAOD values can also be filled.
+ */
 struct Hists {
     TH1F* hJetPt_AK4_Nano{};
     TH1F* hJetPt_AK8_Nano{};
@@ -660,6 +789,10 @@ struct Hists {
     TH1F* hMET{};
 };
 
+/**
+ * Create and organise the monitoring histograms in the output file.  The
+ * directory structure is `year/type/systematicSet/systematicName`.
+ */
 static Hists makeHists(TFile& fout,
                        const std::string& year,
                        bool isData,
@@ -688,8 +821,13 @@ static Hists makeHists(TFile& fout,
 }
 
 //--------------------------------------------------
-// Events are looped in this function 
+// Events are looped in this function
 //--------------------------------------------------
+/**
+ * Core event loop applying the nominal corrections and, depending on
+ * \c systTagDetail, an additional JES or JER systematic variation.  Histograms
+ * are filled and written to the provided output file.
+ */
 static void processEvents(const std::string& inputFile,
                               TFile& fout,
                               const std::string& year,
@@ -837,6 +975,11 @@ static void processEvents(const std::string& inputFile,
 //--------------------------------------------------
 // Event looping function is called for Nominal and Systematics
 //--------------------------------------------------
+/**
+ * Helper that runs the core event loop for the nominal pass and for all
+ * requested JES and JER systematic variations for a given year.  Systematic
+ * definitions are retrieved from the JSON configuration files.
+ */
 void processEventsWithNominalAndSyst(const std::string& inputFile,
                                      TFile& fout,
                                      const std::string& year,
@@ -877,8 +1020,12 @@ void processEventsWithNominalAndSyst(const std::string& inputFile,
 
 
 //--------------------------------------------------
-// Run for multiple years, MC, Data 
+// Run for multiple years, MC, Data
 //--------------------------------------------------
+/**
+ * Macro entry point.  Configures the input files and years to process and
+ * orchestrates running over MC and data samples.
+ */
 void applyJercAndJvmOnNano() {
     const std::string fInputData = "NanoAod_Data.root";
     const std::string fInputMc   = "NanoAod_MC.root";
