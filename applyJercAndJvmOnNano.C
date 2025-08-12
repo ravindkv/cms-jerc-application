@@ -368,6 +368,19 @@ double deltaR(float eta1, float phi1, float eta2, float phi2) {
     return std::abs(std::sqrt(dEta*dEta + dPhi*dPhi));
 }
 
+// Simple helper to conditionally print debug information with optional indentation.
+template<typename... Args>
+void printDebug(bool enable, int indent, const Args&... args) {
+    if (!enable) return;
+    for (int i = 0; i < indent; ++i) std::cout.put(' ');
+    (std::cout << ... << args) << '\n';
+}
+
+template<typename... Args>
+void printDebug(bool enable, const Args&... args) {
+    printDebug(enable, 0, args...);
+}
+
 
 // 2) A single templated nominal corrections, generic over Specs (AK4Specs or AK8Specs) ----
 /**
@@ -390,14 +403,14 @@ void applyNominalCorrections(NanoTree& nanoT,
                        bool print=false)
 {
     for(auto idx: idxs){
-        if(print) std::cout<<"    [Jet] index="<<idx<<"\n";
-        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet 
-        if(print) std::cout<<"      default NanoAod Pt="<<Specs::getPt(nanoT,idx)<<"\n";
+        printDebug(print, 4, "[Jet] index=", idx);
+        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
+        printDebug(print, 6, "default NanoAod Pt=", Specs::getPt(nanoT,idx));
 
         // raw correction
         double rawSF = 1.0 - Specs::getRawFactor(nanoT, idx);
         Specs::applyCorrection(nanoT, idx, rawSF);
-        if(print) std::cout<<"      after undoing   Pt="<<Specs::getPt(nanoT,idx)<<"\n";
+        printDebug(print, 6, "after undoing   Pt=", Specs::getPt(nanoT,idx));
 
         // L1
         double c1 = refs.corrL1->evaluate({ Specs::getArea(nanoT,idx),
@@ -405,22 +418,22 @@ void applyNominalCorrections(NanoTree& nanoT,
                                             Specs::getPt(nanoT,idx),
                                             nanoT.Rho });
         Specs::applyCorrection(nanoT, idx, c1);
-        if(print) std::cout<<"      after L1    Pt="<<Specs::getPt(nanoT,idx)<<"\n";
+        printDebug(print, 6, "after L1    Pt=", Specs::getPt(nanoT,idx));
 
         // L2 rel
         double c2 = refs.corrL2->evaluate({ Specs::getEta(nanoT,idx),
                                             Specs::getPt(nanoT,idx) });
         Specs::applyCorrection(nanoT, idx, c2);
-        if(print) std::cout<<"      after L2Rel Pt="<<Specs::getPt(nanoT,idx)<<"\n";
+        printDebug(print, 6, "after L2Rel Pt=", Specs::getPt(nanoT,idx));
 
         // Residual (data only)
         if(isData){
           double cR = refs.corrL2ResL3Res->evaluate({ Specs::getEta(nanoT,idx),
                                                       Specs::getPt(nanoT,idx) });
           Specs::applyCorrection(nanoT, idx, cR);
-          if(print) std::cout<<"     after ResL3 Pt="<<Specs::getPt(nanoT,idx)<<"\n";
+          printDebug(print, 5, "after ResL3 Pt=", Specs::getPt(nanoT,idx));
         }
-        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet 
+        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
     }
 }
 
@@ -687,13 +700,11 @@ void applyJEROnly(NanoTree& nanoT,
         }
         Specs::applyCorrection(nanoT, idx, corr);
 
-        if (print) {
-            std::cout<<"     JER("<<useVar<<")  Pt="<<Specs::getPt(nanoT, idx);
-            if (region.has_value()) {
-                std::cout<<"   [inRegion="<<(inRegion(*region)?"yes":"no")<<"]";
-            }
-            std::cout<<"\n";
+        std::string extra;
+        if (region.has_value()) {
+            extra = "   [inRegion=" + std::string(inRegion(*region) ? "yes" : "no") + "]";
         }
+        printDebug(print, 5, "JER(", useVar, ")  Pt=", Specs::getPt(nanoT, idx), extra);
 
         nanoT.MET_pt -= Specs::getPt(nanoT, idx);
     }
@@ -716,16 +727,16 @@ void applySystematicShift(NanoTree& nanoT,
 {
     auto systCorr = safeGet(refs.cs, systName);
     for(auto idx: idxs){
-        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet 
+        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
 
-        if(print) std::cout<<"    [Jet] index="<<idx<<"\n";
-        if(print) std::cout<<"     Nominal corrected    Pt="<<Specs::getPt(nanoT,idx)<<"\n";
+        printDebug(print, 4, "[Jet] index=", idx);
+        printDebug(print, 5, "Nominal corrected    Pt=", Specs::getPt(nanoT,idx));
         double scale = systCorr->evaluate({ Specs::getEta(nanoT,idx), Specs::getPt(nanoT,idx) });
         double shift = (var=="Up" ? 1+scale : 1-scale);
         Specs::applyCorrection(nanoT, idx, shift);
-        if(print) std::cout<<"     Syst corrected    Pt="<<Specs::getPt(nanoT,idx)<<"\n";
+        printDebug(print, 5, "Syst corrected    Pt=", Specs::getPt(nanoT,idx));
 
-        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet 
+        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
     }
 }
 
@@ -899,30 +910,30 @@ static void processEvents(const std::string& inputFile,
 
         if(!indicesAK4.empty() && !indicesAK8.empty() && printCount==0){ printCount++; print = true; }
 
-        if(print) std::cout<<"   MET From NanoAOD = "<<nanoT.MET_pt<<'\n';
+        printDebug(print, 3, "MET From NanoAOD = ", nanoT.MET_pt);
 
         // =========================
         // 1) JES (nominal only here) — NO JER inside
         // =========================
-        if(print) std::cout<<"   AK4 (JES nominal)\n";
+        printDebug(print, 3, "AK4 (JES nominal)");
         applyNominalCorrections<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, print);
 
-        if(print) std::cout<<"   AK8 (JES nominal)\n";
+        printDebug(print, 3, "AK8 (JES nominal)");
         applyNominalCorrections<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, print);
 
-        if(print) std::cout<<"   MET After (JES nominal) = "<<nanoT.MET_pt<<'\n';
+        printDebug(print, 3, "MET After (JES nominal) = ", nanoT.MET_pt);
 
         // =========================
         // 2) JES Uncertainty (MC only), if this pass is JES
         // =========================
         if (!isData && systTagDetail.kind == SystKind::JES) {
-            if(print) std::cout<<"   AK4 (JES "<<systTagDetail.var<<")\n";
+            printDebug(print, 3, "AK4 (JES ", systTagDetail.var, ")");
             applySystematicShift<AK4Specs>(nanoT, refsAK4, systTagDetail.tagAK4, systTagDetail.var, indicesAK4, print);
 
-            if(print) std::cout<<"   AK8 (JES "<<systTagDetail.var<<")\n";
+            printDebug(print, 3, "AK8 (JES ", systTagDetail.var, ")");
             applySystematicShift<AK8Specs>(nanoT, refsAK8, systTagDetail.tagAK8, systTagDetail.var, indicesAK8, print);
 
-            if(print) std::cout<<"   MET After (JES "<<systTagDetail.var<<") = "<<nanoT.MET_pt<<'\n';
+            printDebug(print, 3, "MET After (JES ", systTagDetail.var, ") = ", nanoT.MET_pt);
         }
 
         // =========================
@@ -931,27 +942,27 @@ static void processEvents(const std::string& inputFile,
         if (!isData) {
             if (systTagDetail.kind == SystKind::JER) {
                 // up/down only in the specified region; outside region use "nom"
-                if(print) std::cout<<"   AK4 (JER "<<systTagDetail.var<<")\n";
-                applyJEROnly<AK4Specs>(nanoT, refsAK4, indicesAK4, 
+                printDebug(print, 3, "AK4 (JER ", systTagDetail.var, ")");
+                applyJEROnly<AK4Specs>(nanoT, refsAK4, indicesAK4,
                                        std::string(systTagDetail.var == "Up" ? "up":"down"),
                                        systTagDetail.jerRegion, print);
 
-                if(print) std::cout<<"   AK8 (JER "<<systTagDetail.var<<")\n";
-                applyJEROnly<AK8Specs>(nanoT, refsAK8, indicesAK8, 
+                printDebug(print, 3, "AK8 (JER ", systTagDetail.var, ")");
+                applyJEROnly<AK8Specs>(nanoT, refsAK8, indicesAK8,
                                        std::string(systTagDetail.var == "Up" ? "up":"down"),
                                        systTagDetail.jerRegion, print);
-                if(print) std::cout<<"   MET After (JER "<<systTagDetail.var<<") = "<<nanoT.MET_pt<<'\n';
+                printDebug(print, 3, "MET After (JER ", systTagDetail.var, ") = ", nanoT.MET_pt);
             } else {
                 // Nominal or JES pass → apply JER(nom) to all jets
-                if(print) std::cout<<"   AK4 (JER nom)\n";
+                printDebug(print, 3, "AK4 (JER nom)");
                 applyJEROnly<AK4Specs>(nanoT, refsAK4, indicesAK4, "nom", std::nullopt, print);
-                if(print) std::cout<<"   AK8 (JER nom)\n";
+                printDebug(print, 3, "AK8 (JER nom)");
                 applyJEROnly<AK8Specs>(nanoT, refsAK8, indicesAK8, "nom", std::nullopt, print);
-                if(print) std::cout<<"   MET After (JER nominal) = "<<nanoT.MET_pt<<'\n';
+                printDebug(print, 3, "MET After (JER nominal) = ", nanoT.MET_pt);
             }
         }
 
-        if(print) std::cout<<"   MET after JERC = "<<nanoT.MET_pt<<'\n';
+        printDebug(print, 3, "MET after JERC = ", nanoT.MET_pt);
         print = false;
 
         // Fill hists
