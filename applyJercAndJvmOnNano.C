@@ -949,15 +949,25 @@ static void processEvents(const std::string& inputFile,
         printDebug(print, 3, "MET From NanoAOD = ", nanoT.MET_pt);
 
         // =========================
-        // 1) JES (nominal only here) — NO JER inside
+        // 1) JES (nominal) — NO JER inside
         // =========================
-        printDebug(print, 3, "AK4 (JES nominal)");
-        applyNominalCorrections<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, print);
+        if (systTagDetail.isNominal()) {
+            // In the nominal pass print the full per-jet breakdown
+            printDebug(print, 3, "AK4 (JES nominal)");
+            applyNominalCorrections<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, print);
 
-        printDebug(print, 3, "AK8 (JES nominal)");
-        applyNominalCorrections<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, print);
+            printDebug(print, 3, "AK8 (JES nominal)");
+            applyNominalCorrections<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, print);
 
-        printDebug(print, 3, "MET After (JES nominal) = ", nanoT.MET_pt);
+            printDebug(print, 3, "MET After (JES nominal) = ", nanoT.MET_pt);
+        } else {
+            // For systematic shifts we still need to apply the nominal
+            // corrections but skip the verbose printing to avoid repeating
+            // the same information for each shift.
+            applyNominalCorrections<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, false);
+            applyNominalCorrections<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, false);
+            printDebug(print, 3, "Nominal JEC applied");
+        }
 
         // =========================
         // 2) JES Uncertainty (MC only), if this pass is JES
