@@ -637,23 +637,30 @@ enum class SystKind { Nominal, JES, JER };
  * For JES systematics it stores the tags for AK4 and AK8 corrections, 
  * while for JER systematics it records the affected `JerBin` region.
  */
-struct SystTagDetailJES {
-    std::string setName;   // e.g. "ForUncertaintyJESFull" or "ForUncertaintyJERFull" (for JER we reuse this)
-    std::string tagAK4;    // JES only
-    std::string tagAK8;    // JES only
-    std::string baseTag;   // JES: CustomName; JER: label (e.g. "CMS_res_j_2017_absEta…")
+struct SystTagDetail {
+    std::string setName;   // e.g. "ForUncertaintyJESFull"
     std::string var;       // "Up" / "Down" (empty for nominal)
     SystKind kind{SystKind::Nominal};
-    std::optional<JerBin> jerRegion;  // only set for JER
 
     bool isNominal() const { return kind == SystKind::Nominal; }
     std::string systSetName() const { return isNominal() ? "Nominal" : setName; }
-    std::string systName() const {
-        if (isNominal()) return "Nominal";
-        if (kind == SystKind::JES) return baseTag + "_" + var;
-        // JER: use label_up/down
-        return baseTag + "_" + var;
-    }
+    virtual std::string systName() const { return isNominal() ? "Nominal" : setName + "_" + var; }
+    virtual ~SystTagDetail() = default;
+};
+
+struct SystTagDetailJES : public SystTagDetail {
+    std::string tagAK4;    // JES only
+    std::string tagAK8;    // JES only
+    std::string baseTag;   // CustomName
+
+    std::string systName() const override { return isNominal() ? "Nominal" : baseTag + "_" + var; }
+};
+
+struct SystTagDetailJER : public SystTagDetail {
+    std::string baseTag;   // label (e.g. "CMS_res_j_2017_absEta…")
+    JerBin jerRegion;      // region definition from JSON
+
+    std::string systName() const override { return isNominal() ? "Nominal" : baseTag + "_" + var; }
 };
 
 /**
@@ -684,15 +691,14 @@ static std::vector<SystTagDetailJES> buildSystTagDetailJES(const SystSetMapJES& 
             if (itFullAK8 == mapAK8.end()) continue;
 
             for (const char* var : {"Up","Down"}) {
-                systTagDetails.push_back(SystTagDetailJES{
-                    /*setName*/ set,
-                    /*tagAK4*/  fullAK4,
-                    /*tagAK8*/  itFullAK8->second,
-                    /*baseTag*/ base,   
-                    /*var*/     var,
-                    /*kind*/    SystKind::JES,
-                    /*jerRegion*/ std::nullopt
-                });
+                SystTagDetailJES d;
+                d.setName = set;
+                d.var = var;
+                d.kind = SystKind::JES;
+                d.tagAK4 = fullAK4;
+                d.tagAK8 = itFullAK8->second;
+                d.baseTag = base;
+                systTagDetails.push_back(d);
             }
         }
     }
@@ -731,20 +737,18 @@ void applySystShiftJES(NanoTree& nanoT,
  * Expand the JER uncertainty definition into explicit up/down variations for
  * each bin defined in the JSON configuration.
  */
-static std::vector<SystTagDetailJES> buildJerTagDetails(const JerSetMap& jerSets) {
-    std::vector<SystTagDetailJES> out;
+static std::vector<SystTagDetailJER> buildJerTagDetails(const JerSetMap& jerSets) {
+    std::vector<SystTagDetailJER> out;
     for (const auto& [setName, bins] : jerSets) {
         for (const auto& b : bins) {
             for (const char* var : {"Up","Down"}) {
-                SystTagDetailJES d;
+                SystTagDetailJER d;
                 d.setName   = setName;        // "ForUncertaintyJERFull" or "ForUncertaintyJERTotal"
-                d.tagAK4    = "";             // not used for JER
-                d.tagAK8    = "";             // not used for JER
-                d.baseTag   = b.label;        // the label/key from JSON
                 d.var       = var;
                 d.kind      = SystKind::JER;
+                d.baseTag   = b.label;        // the label/key from JSON
                 d.jerRegion = b;
-                out.push_back(std::move(d));
+                out.push_back(d);
             }
         }
     }
@@ -919,7 +923,7 @@ static void processEvents(const std::string& inputFile,
                               const std::string& year,
                               bool isData,
                               const std::optional<std::string>& era,
-                              const SystTagDetailJES& systTagDetail)
+                              const SystTagDetail& systTagDetail)
 {
     // --- AK4 refs
     auto cfgAK4  = loadJsonConfig("JercFileAndTagNamesAK4.json");
@@ -993,13 +997,14 @@ static void processEvents(const std::string& inputFile,
         // 2) JES Uncertainty (MC only), if this pass is JES
         // =========================
         if (!isData && systTagDetail.kind == SystKind::JES) {
-            printDebug(print, spaces3, "AK4 (JES ", systTagDetail.var, ")");
-            applySystShiftJES<AK4Specs>(nanoT, refsAK4, systTagDetail.tagAK4, systTagDetail.var, indicesAK4, print);
+            const auto& jesDetail = static_cast<const SystTagDetailJES&>(systTagDetail);
+            printDebug(print, spaces3, "AK4 (JES ", jesDetail.var, ")");
+            applySystShiftJES<AK4Specs>(nanoT, refsAK4, jesDetail.tagAK4, jesDetail.var, indicesAK4, print);
 
-            printDebug(print, spaces3, "AK8 (JES ", systTagDetail.var, ")");
-            applySystShiftJES<AK8Specs>(nanoT, refsAK8, systTagDetail.tagAK8, systTagDetail.var, indicesAK8, print);
+            printDebug(print, spaces3, "AK8 (JES ", jesDetail.var, ")");
+            applySystShiftJES<AK8Specs>(nanoT, refsAK8, jesDetail.tagAK8, jesDetail.var, indicesAK8, print);
 
-            printDebug(print, spaces3, "MET After (JES ", systTagDetail.var, ") = ", nanoT.MET_pt);
+            printDebug(print, spaces3, "MET After (JES ", jesDetail.var, ") = ", nanoT.MET_pt);
         }
 
         // =========================
@@ -1007,17 +1012,18 @@ static void processEvents(const std::string& inputFile,
         // =========================
         if (!isData) {
             if (systTagDetail.kind == SystKind::JER) {
+                const auto& jerDetail = static_cast<const SystTagDetailJER&>(systTagDetail);
                 // up/down only in the specified region; outside region use "nom"
-                printDebug(print, spaces3, "AK4 (JER ", systTagDetail.var, ")");
+                printDebug(print, spaces3, "AK4 (JER ", jerDetail.var, ")");
                 applyJERNominalOrShift<AK4Specs>(nanoT, refsAK4, indicesAK4,
-                                       std::string(systTagDetail.var == "Up" ? "up":"down"),
-                                       systTagDetail.jerRegion, print);
+                                       std::string(jerDetail.var == "Up" ? "up":"down"),
+                                       jerDetail.jerRegion, print);
 
-                printDebug(print, spaces3, "AK8 (JER ", systTagDetail.var, ")");
+                printDebug(print, spaces3, "AK8 (JER ", jerDetail.var, ")");
                 applyJERNominalOrShift<AK8Specs>(nanoT, refsAK8, indicesAK8,
-                                       std::string(systTagDetail.var == "Up" ? "up":"down"),
-                                       systTagDetail.jerRegion, print);
-                printDebug(print, spaces3, "MET After (JER ", systTagDetail.var, ") = ", nanoT.MET_pt);
+                                       std::string(jerDetail.var == "Up" ? "up":"down"),
+                                       jerDetail.jerRegion, print);
+                printDebug(print, spaces3, "MET After (JER ", jerDetail.var, ") = ", nanoT.MET_pt);
             } else {
                 // Nominal or JES pass → apply JER(nom) to all jets
                 printDebug(print, spaces3, "===>");
@@ -1078,7 +1084,7 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
 
     // 0) Nominal
     std::cout<<" [Nominal]\n";
-    processEvents(inputFile, fout, year, isData, era, SystTagDetailJES{/*Nominal*/});
+    processEvents(inputFile, fout, year, isData, era, SystTagDetail{});
 
     if (!isData) {
         // 1) Correlated JES systematics (only where both algos define the same custom base)
