@@ -24,12 +24,12 @@
         "tagNameL2L3Residual": "Summer19UL16APV_RunEF_V7_DATA_L2L3Residual_AK8PFPuppi"
       }
     },
-    "ShiftedJES": {
-      "ShiftedJESFull": [
+    "ForUncertaintyJES": {
+      "ForUncertaintyJESFull": [
         "Summer19UL16APV_V7_MC_AbsoluteScale_AK8PFPuppi",
         "Summer19UL16APV_V7_MC_Fragmentation_AK8PFPuppi"
       ],
-      "ShiftedJESReduced": [
+      "ForUncertaintyJESReduced": [
         "Summer19UL16APV_V7_MC_Regrouped_BBEC1_AK8PFPuppi",
         "Summer19UL16APV_V7_MC_Regrouped_BBEC1_2016_AK8PFPuppi"
       ]
@@ -53,12 +53,12 @@
         "tagNameL2L3Residual": "Summer19UL16_RunFGH_V7_DATA_L2L3Residual_AK8PFPuppi"
       }
     },
-    "ShiftedJES": {
-      "ShiftedJESFull": [
+    "ForUncertaintyJES": {
+      "ForUncertaintyJESFull": [
         "Summer19UL16_V7_MC_AbsoluteScale_AK8PFPuppi",
         "Summer19UL16_V7_MC_Fragmentation_AK8PFPuppi"
       ],
-      "ShiftedJESReduced": [
+      "ForUncertaintyJESReduced": [
         "Summer19UL16_V7_MC_Regrouped_BBEC1_AK8PFPuppi",
         "Summer19UL16_V7_MC_Regrouped_BBEC1_2016_AK8PFPuppi"
       ]
@@ -110,30 +110,30 @@
         "tagNameL2L3Residual": "Summer19UL17_RunF_V5_DATA_L2L3Residual_AK8PFPuppi"
       }
     },
-    "ShiftedJES": {
-      "ShiftedJESFull": [
+    "ForUncertaintyJES": {
+      "ForUncertaintyJESFull": [
         ["Summer19UL17_V5_MC_AbsoluteScale_AK8PFPuppi", "CMS_scale_j_AbsoluteScale"],
         ["Summer19UL17_V5_MC_Fragmentation_AK8PFPuppi", "CMS_scale_j_Fragmentation"]
       ],
-      "ShiftedJESReduced": [
+      "ForUncertaintyJESReduced": [
         ["Summer19UL17_V5_MC_Regrouped_BBEC1_AK8PFPuppi", "CMS_scale_j_BBEC1"],
         ["Summer19UL17_V5_MC_Regrouped_BBEC1_2017_AK8PFPuppi", "CMS_scale_j_BBEC1"]
       ],
-      "ShiftedJESTotal": [
+      "ForUncertaintyJESTotal": [
         ["Summer19UL17_V5_MC_Total_AK8PFPuppi", "CMS_scale_j_Total"]
       ]
     },
-    "ShiftedJER": {
-        "ShiftedJERFull": {
-          "CMS_res_j_2017_absEta0to1p93_pT0toInf":   { "etaMin": 0.0,  "etaMax": 1.93, "ptMin": 0,  "ptMax": 10000 },
-          "CMS_res_j_2017_absEta1p93to2p5_pT0toInf": { "etaMin": 1.93, "etaMax": 2.5,  "ptMin": 0,  "ptMax": 10000 },
-          "CMS_res_j_2017_absEta2p5to3p0_pT0to50":   { "etaMin": 2.5,  "etaMax": 3.0,  "ptMin": 0,  "ptMax": 50    },
-          "CMS_res_j_2017_absEta2p5to3p0_pT50toInf": { "etaMin": 2.5,  "etaMax": 3.0,  "ptMin": 50, "ptMax": 10000 },
-          "CMS_res_j_2017_absEta3to5_pT0to50":       { "etaMin": 3.0,  "etaMax": 5.0,  "ptMin": 0,  "ptMax": 50    },
-          "CMS_res_j_2017_absEta3to5_pT50toInf":     { "etaMin": 3.0,  "etaMax": 5.0,  "ptMin": 50, "ptMax": 10000 }
+    "ForUncertaintyJER": {
+        "ForUncertaintyJERFull": {
+          "CMS_res_j_2017_absEta0to1p93_pT0toInf":   [ 0.0,  1.93, 0,  10000 ],
+          "CMS_res_j_2017_absEta1p93to2p5_pT0toInf": [ 1.93, 2.5,  0,  10000 ],
+          "CMS_res_j_2017_absEta2p5to3p0_pT0to50":   [ 2.5,  3.0,  0,  50    ],
+          "CMS_res_j_2017_absEta2p5to3p0_pT50toInf": [ 2.5,  3.0,  50, 10000 ],
+          "CMS_res_j_2017_absEta3to5_pT0to50":       [ 3.0,  5.0,  0,  50    ],
+          "CMS_res_j_2017_absEta3to5_pT50toInf":     [ 3.0,  5.0,  50, 10000 ]
         },
-        "ShiftedJERTotal": {
-          "CMS_res_j_2017": {"etaMin": 0.0, "etaMax": 6.0, "ptMin":0, "ptMax": 10000}
+        "ForUncertaintyJERTotal": {
+          "CMS_res_j_2017": [0.0, 6.0, 0, 10000]
       }
     }
   },
@@ -176,12 +176,12 @@
         "tagNameL2L3Residual": "Summer19UL18_RunD_V5_DATA_L2L3Residual_AK8PFPuppi"
       }
     },
-    "ShiftedJES": {
-      "ShiftedJESFull": [
+    "ForUncertaintyJES": {
+      "ForUncertaintyJESFull": [
         "Summer19UL18_V5_MC_AbsoluteScale_AK8PFPuppi",
         "Summer19UL18_V5_MC_Fragmentation_AK8PFPuppi"
       ],
-      "ShiftedJESReduced": [
+      "ForUncertaintyJESReduced": [
         "Summer19UL18_V5_MC_Regrouped_BBEC1_AK8PFPuppi",
         "Summer19UL18_V5_MC_Regrouped_BBEC1_2018_AK8PFPuppi"
       ]
