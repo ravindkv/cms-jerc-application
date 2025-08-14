@@ -933,9 +933,14 @@ static void processEvents(const std::string& inputFile,
     Tags tagsAK4 = getTagNames(cfgAK4, year, isData, era);
     CorrectionRefs refsAK4(tagsAK4);
 
-    // --- AK8 refs
+    // --- AK8 refs: reuse AK4 tags if AK8 lacks this year (Run-3)
     auto cfgAK8  = loadJsonConfig("JercFileAndTagNamesAK8.json");
-    Tags tagsAK8 = getTagNames(cfgAK8, year, isData, era);
+    Tags tagsAK8;
+    if (cfgAK8.contains(year)) {
+        tagsAK8 = getTagNames(cfgAK8, year, isData, era);
+    } else {
+        tagsAK8 = tagsAK4;
+    }
     CorrectionRefs refsAK8(tagsAK8);
 
     // --- JVM (unchanged)
@@ -1075,18 +1080,13 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
     auto cfgAK4 = loadJsonConfig("JercFileAndTagNamesAK4.json");
     auto cfgAK8 = loadJsonConfig("JercFileAndTagNamesAK8.json");
 
-    // JES sets (unchanged)
+    // JES sets: if AK8 tags are missing for Run-3, fall back to AK4 tags
     SystSetMapJES sAK4 = getSystTagNames(cfgAK4, year);
-    SystSetMapJES AK8; 
-    if(year=="2022Pre" || 
-        year=="2022Post"|| 
-        year=="2023Pre"|| 
-        year=="2023Post"|| 
-        year=="2024")
-    {
-        AK8 = sAK4; //for Run3 use same for AK4 and AK8
-    }else{
-        SystSetMapJES AK8 = getSystTagNames(cfgAK8, year);
+    SystSetMapJES sAK8;
+    if (cfgAK8.contains(year)) {
+        sAK8 = getSystTagNames(cfgAK8, year);
+    } else {
+        sAK8 = sAK4; // use AK4 tags for AK8 when not available
     }
 
     // JER sets (read once; we can use AK4 file as the source of binning)
@@ -1098,7 +1098,7 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
 
     if (!isData) {
         // 1) Correlated JES systematics (only where both algos define the same custom base)
-        auto jesDetails = buildSystTagDetailJES(sAK4, AK8);
+        auto jesDetails = buildSystTagDetailJES(sAK4, sAK8);
         for (const auto& d : jesDetails) {
             std::cout<<"\n [JES Syst]: "<<d.systName()<<'\n';
             processEvents(inputFile, fout, year, false, era, d);
