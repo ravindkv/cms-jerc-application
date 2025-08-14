@@ -627,11 +627,11 @@
     "tagNameJerScaleFactor": "Summer23BPixPrompt23_RunD_JRV1_MC_ScaleFactor_AK4PFPuppi",
     "data": {
       "Era2023PostAll": {
-        "tagNameL1FastJet": "Summer24Prompt24_V1_DATA_L1FastJet_AK4PFPuppi",
-        "tagNameL2Relative": "Summer24Prompt24_V1_DATA_L2Relative_AK4PFPuppi",
-        "tagNameL3Absolute": "Summer24Prompt24_V1_DATA_L3Absolute_AK4PFPuppi",
-        "tagNameL2Residual": "Summer24Prompt24_V1_DATA_L2Residual_AK4PFPuppi",
-        "tagNameL2L3Residual": "Summer24Prompt24_V1_DATA_L2L3Residual_AK4PFPuppi"
+        "tagNameL1FastJet": "Summer23BPixPrompt23_V3_DATA_L1FastJet_AK4PFPuppi",
+        "tagNameL2Relative": "Summer23BPixPrompt23_V3_DATA_L2Relative_AK4PFPuppi",
+        "tagNameL3Absolute": "Summer23BPixPrompt23_V3_DATA_L3Absolute_AK4PFPuppi",
+        "tagNameL2Residual": "Summer23BPixPrompt23_V3_DATA_L2Residual_AK4PFPuppi",
+        "tagNameL2L3Residual": "Summer23BPixPrompt23_V3_DATA_L2L3Residual_AK4PFPuppi"
       }
     },
     "ForUncertaintyJES": {
@@ -705,7 +705,7 @@
     "tagNamePtResolution": "Summer23BPixPrompt23_RunD_JRV1_MC_PtResolution_AK4PFPuppi",
     "tagNameJerScaleFactor": "Summer23BPixPrompt23_RunD_JRV1_MC_ScaleFactor_AK4PFPuppi",
     "data": {
-      "Era2023PostAll": {
+      "Era2024All": {
         "tagNameL1FastJet": "Summer24Prompt24_V1_DATA_L1FastJet_AK4PFPuppi",
         "tagNameL2Relative": "Summer24Prompt24_V1_DATA_L2Relative_AK4PFPuppi",
         "tagNameL3Absolute": "Summer24Prompt24_V1_DATA_L3Absolute_AK4PFPuppi",

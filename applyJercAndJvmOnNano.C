@@ -397,6 +397,7 @@ void printDebug(bool enable, int indent, const Args&... args) {
  */
 template<typename Specs>
 void applyJESNominal(NanoTree& nanoT,
+                       std::string year,
                        CorrectionRefs& refs,
                        bool isData,
                        const std::vector<UInt_t>& idxs,
@@ -426,16 +427,42 @@ void applyJESNominal(NanoTree& nanoT,
         printDebug(print, spaces6, "after L1FastJet  Pt=", Specs::getPt(nanoT,idx));
 
         // L2Relative (aka MCTruth correction)
-        double c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
+        double c2 = 1.0;
+        if(year=="2023Post" || year=="2024"){
+            c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
+                                            Specs::getPhi(nanoT,idx),
                                             Specs::getPt(nanoT,idx) });
+        }else{
+            c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
+                                            Specs::getPt(nanoT,idx) });
+        }
         Specs::applyCorrection(nanoT, idx, c2);
         printDebug(print, spaces6, "after L2Relative Pt=", Specs::getPt(nanoT,idx));
 
         //L2L3Residual (L2Residual + L3Residual together) on data only 
         //(to cover residual differences between Data/MC)
         if(isData){
-          double cR = refs.corrRefJesL2ResL3Res->evaluate({ Specs::getEta(nanoT,idx),
+          double cR = 1.0;
+          if(year=="2023Pre" || year=="2023Post" || year=="2024"){
+            double runNumber = static_cast<double>(nanoT.run);
+            /**
+             * Since we currently have a tiny NanoAod_Data.root file where we do
+             * not have run numbers from multuple years. So temporarily we choose
+             * the lower bound for each year to excecute the code
+             */  
+            // 2023Pre: run edges : [367080.0, 367765.0, 369802.0] 
+            // 2023Post: run edges : [369803.0, 372415.0]
+            // 2024: run edges[379412.0, 380253.0, 380948.0, ..., 386409.0, 387121.0]
+            if(year=="2023Pre") runNumber = 367080.0;
+            if(year=="2023Post") runNumber = 369803.0;
+            if(year=="2024") runNumber = 379412.0;
+            cR = refs.corrRefJesL2ResL3Res->evaluate({runNumber,
+                                                      Specs::getEta(nanoT,idx),
                                                       Specs::getPt(nanoT,idx) });
+          }else{
+            cR = refs.corrRefJesL2ResL3Res->evaluate({ Specs::getEta(nanoT,idx),
+                                                      Specs::getPt(nanoT,idx) });
+          }
           Specs::applyCorrection(nanoT, idx, cR);
           printDebug(print, spaces6, "after L2L3Residual Pt=", Specs::getPt(nanoT,idx));
         }
@@ -462,6 +489,7 @@ struct JerBin {
 
 template<typename Specs>
 void applyJERNominalOrShift(NanoTree& nanoT,
+                  std::string year,
                   CorrectionRefs& refs,
                   const std::vector<UInt_t>& idxs,
                   const std::string& var,                          // "nom" / "up" / "down"
@@ -495,7 +523,12 @@ void applyJERNominalOrShift(NanoTree& nanoT,
         nanoT.MET_pt += Specs::getPt(nanoT, idx); //add MET to jet
 
         const double reso = refs.corrRefJerReso->evaluate({ etaJet, ptJet, nanoT.Rho });
-        const double sf   = refs.corrRefJerSf->evaluate({ etaJet, useVar });
+        double sf = 1.0;
+        if(year=="2022Pre" || year=="2022Post" || year=="2023Pre" || year=="2023Post" || year=="2024"){
+            sf   = refs.corrRefJerSf->evaluate({ etaJet, ptJet, useVar });
+        }else{
+            sf   = refs.corrRefJerSf->evaluate({ etaJet, useVar });
+        }
 
         refs.randomGen.SetSeed(nanoT.event + nanoT.run + nanoT.luminosityBlock);
 
@@ -990,19 +1023,19 @@ static void processEvents(const std::string& inputFile,
         if (systTagDetail.isNominal()) {
             // In the nominal pass print the full per-jet breakdown
             printDebug(print, spaces3, "AK4 (JES nominal)");
-            applyJESNominal<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, print);
+            applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, print);
             printDebug(print, spaces3, "MET After AK4 (JES nominal)  = ", nanoT.MET_pt);
 
             printDebug(print, spaces3, "AK8 (JES nominal)");
-            applyJESNominal<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, print);
+            applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, print);
             printDebug(print, spaces3, "MET After AK8 (JES nominal)  = ", nanoT.MET_pt);
 
         } else {
             // For systematic shifts we still need to apply the nominal
             // corrections but skip the verbose printing to avoid repeating
             // the same information for each shift.
-            applyJESNominal<AK4Specs>(nanoT, refsAK4, isData, indicesAK4, false);
-            applyJESNominal<AK8Specs>(nanoT, refsAK8, isData, indicesAK8, false);
+            applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, false);
+            applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, false);
             printDebug(print, spaces3, "Nominal JES applied");
             printDebug(print, spaces3, "MET After AK4+AK8 (JES nominal) = ", nanoT.MET_pt);
         }
@@ -1029,12 +1062,12 @@ static void processEvents(const std::string& inputFile,
                 const auto& jerDetail = static_cast<const SystTagDetailJER&>(systTagDetail);
                 // up/down only in the specified region; outside region use "nom"
                 printDebug(print, spaces3, "AK4 (JER ", jerDetail.var, ")");
-                applyJERNominalOrShift<AK4Specs>(nanoT, refsAK4, indicesAK4,
+                applyJERNominalOrShift<AK4Specs>(nanoT, year, refsAK4, indicesAK4,
                                        std::string(jerDetail.var == "Up" ? "up":"down"),
                                        jerDetail.jerRegion, print);
 
                 printDebug(print, spaces3, "AK8 (JER ", jerDetail.var, ")");
-                applyJERNominalOrShift<AK8Specs>(nanoT, refsAK8, indicesAK8,
+                applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8,
                                        std::string(jerDetail.var == "Up" ? "up":"down"),
                                        jerDetail.jerRegion, print);
                 printDebug(print, spaces3, "MET After (JER ", jerDetail.var, ") = ", nanoT.MET_pt);
@@ -1042,9 +1075,9 @@ static void processEvents(const std::string& inputFile,
                 // Nominal or JES pass → apply JER(nom) to all jets
                 printDebug(print, spaces3, "===>");
                 printDebug(print, spaces3, "AK4 (JER nom)");
-                applyJERNominalOrShift<AK4Specs>(nanoT, refsAK4, indicesAK4, "nom", std::nullopt, print);
+                applyJERNominalOrShift<AK4Specs>(nanoT, year, refsAK4, indicesAK4, "nom", std::nullopt, print);
                 printDebug(print, spaces3, "AK8 (JER nom)");
-                applyJERNominalOrShift<AK8Specs>(nanoT, refsAK8, indicesAK8, "nom", std::nullopt, print);
+                applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8, "nom", std::nullopt, print);
                 printDebug(print, spaces3, "MET After (JER nominal) = ", nanoT.MET_pt);
             }
         }
@@ -1134,15 +1167,37 @@ void applyJercAndJvmOnNano() {
 
 
     std::vector<std::string> mcYears = {
-        //"2016Pre", 
-        //"2016Post",
-        //"2017",
-        //"2018",
-        "2022Pre"
+        "2016Pre", 
+        "2016Post",
+        "2017",
+        "2018",
+        "2022Pre",
+        "2022Post",
+        "2023Pre",
+        "2023Post",
+        "2024"
     };
     std::vector<std::pair<std::string, std::string>> dataConfigs = {
-        {"2017", "Era2017B"},
-        //{"2018", "Era2018A"}
+       {"2016Pre", "Era2016PreBCD"},
+       {"2016Pre", "Era2016PreEF"},
+       {"2016Post","Era2016PostFGH"},
+       {"2017",    "Era2017B"},
+       {"2017",    "Era2017C"},
+       {"2017",    "Era2017D"},
+       {"2017",    "Era2017E"},
+       {"2017",    "Era2017F"},
+       {"2018",    "Era2018A"},
+       {"2018",    "Era2018B"},
+       {"2018",    "Era2018C"},
+       {"2018",    "Era2018D"},
+       {"2022Pre", "Era2022C"},
+       {"2022Pre", "Era2022D"},
+       {"2022Post","Era2022E"},
+       {"2022Post","Era2022F"},
+       {"2022Post","Era2022G"},
+       {"2023Pre", "Era2023PreAll"},//Run based
+       {"2023Post","Era2023PostAll"},//Run based
+       {"2024",    "Era2024All"},//Run based
     };
 
     for (const auto& year : mcYears) {
@@ -1153,10 +1208,10 @@ void applyJercAndJvmOnNano() {
     }
 
     for (const auto& [year, era] : dataConfigs) {
-        std::cout<<"-----------------"<<year <<'\n';
+        std::cout<<"-----------------"<<'\n';
         std::cout<<"\n[Data] : "<<year <<" : "<<era <<'\n';
-        std::cout<<"-----------------"<<year <<'\n';
-        //processEventsWithNominalOrSyst(fInputData, fout, year, /*isData=*/true, era);
+        std::cout<<"-----------------" <<'\n';
+        processEventsWithNominalOrSyst(fInputData, fout, year, /*isData=*/true, era);
     }
 
     fout.Write();
