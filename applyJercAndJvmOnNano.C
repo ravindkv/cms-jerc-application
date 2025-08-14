@@ -561,8 +561,10 @@ static JerSetMap getJerUncertaintySets(const nlohmann::json& baseJson, const std
 
         std::vector<JerBin> bins;
         bins.reserve(obj.size());
-
+        int debugCount = 0;
         for (auto it2 = obj.begin(); it2 != obj.end(); ++it2) {
+            debugCount++;
+            if(debugCount > 1) break;
             const std::string label = it2.key();   // e.g. "CMS_res_j_2017_absEta0to1p93_pT0toInf"
             const auto& arr = it2.value();         // expected: [etaMin, etaMax, ptMin, ptMax]
 
@@ -587,8 +589,6 @@ static JerSetMap getJerUncertaintySets(const nlohmann::json& baseJson, const std
 
     return out;
 }
-
-
 
 //--------------------------------------------------
 // Uncertainty Up/Down JES Correction 
@@ -618,7 +618,10 @@ SystSetMapJES getSystTagNames(const nlohmann::json& baseJson, const std::string&
         std::vector<SystPairJES> pairs;
         pairs.reserve(arr.size());
 
+        int debugCount = 0;
         for (const auto& item : arr) {
+            debugCount++;
+            if(debugCount > 1) break;
             if (item.is_array() && item.size() >= 2 && item.at(0).is_string() && item.at(1).is_string()) {
                 pairs.emplace_back(item.at(0).get<std::string>(), item.at(1).get<std::string>());
             } 
@@ -662,6 +665,28 @@ struct SystTagDetailJER : public SystTagDetail {
 
     std::string systName() const override { return isNominal() ? "Nominal" : baseTag + "_" + var; }
 };
+
+/**
+ * Expand the JER uncertainty definition into explicit up/down variations for
+ * each bin defined in the JSON configuration.
+ */
+static std::vector<SystTagDetailJER> buildJerTagDetails(const JerSetMap& jerSets) {
+    std::vector<SystTagDetailJER> out;
+    for (const auto& [setName, bins] : jerSets) {
+        for (const auto& b : bins) {
+            for (const char* var : {"Up","Down"}) {
+                SystTagDetailJER d;
+                d.setName   = setName;        // "ForUncertaintyJERFull" or "ForUncertaintyJERTotal"
+                d.var       = var;
+                d.kind      = SystKind::JER;
+                d.baseTag   = b.label;        // the label/key from JSON
+                d.jerRegion = b;
+                out.push_back(d);
+            }
+        }
+    }
+    return out;
+}
 
 /**
  * Combine the JES systematic tag information for AK4 and AK8 jets.  
@@ -731,28 +756,6 @@ void applySystShiftJES(NanoTree& nanoT,
 
         nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
     }
-}
-
-/**
- * Expand the JER uncertainty definition into explicit up/down variations for
- * each bin defined in the JSON configuration.
- */
-static std::vector<SystTagDetailJER> buildJerTagDetails(const JerSetMap& jerSets) {
-    std::vector<SystTagDetailJER> out;
-    for (const auto& [setName, bins] : jerSets) {
-        for (const auto& b : bins) {
-            for (const char* var : {"Up","Down"}) {
-                SystTagDetailJER d;
-                d.setName   = setName;        // "ForUncertaintyJERFull" or "ForUncertaintyJERTotal"
-                d.var       = var;
-                d.kind      = SystKind::JER;
-                d.baseTag   = b.label;        // the label/key from JSON
-                d.jerRegion = b;
-                out.push_back(d);
-            }
-        }
-    }
-    return out;
 }
 
 
@@ -1052,15 +1055,12 @@ static void processEvents(const std::string& inputFile,
         }
 
         // ... further analysis ...
-    }
+    }//event loop
 
     std::cout<<"   Number of events vetoed due to JetVetoMap: "<<countVeto<<'\n';
 }
 
 
-//--------------------------------------------------
-// Event looping function is called for Nominal and Systematics
-//--------------------------------------------------
 /**
  * Helper that runs the core event loop for the nominal pass and for all
  * requested JES and JER systematic variations for a given year.  Systematic
@@ -1076,8 +1076,18 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
     auto cfgAK8 = loadJsonConfig("JercFileAndTagNamesAK8.json");
 
     // JES sets (unchanged)
-    SystSetMapJES s4 = getSystTagNames(cfgAK4, year);
-    SystSetMapJES s8 = getSystTagNames(cfgAK8, year);
+    SystSetMapJES sAK4 = getSystTagNames(cfgAK4, year);
+    SystSetMapJES AK8; 
+    if(year=="2022Pre" || 
+        year=="2022Post"|| 
+        year=="2023Pre"|| 
+        year=="2023Post"|| 
+        year=="2024")
+    {
+        AK8 = sAK4; //for Run3 use same for AK4 and AK8
+    }else{
+        SystSetMapJES AK8 = getSystTagNames(cfgAK8, year);
+    }
 
     // JER sets (read once; we can use AK4 file as the source of binning)
     JerSetMap jerSets = getJerUncertaintySets(cfgAK4, year);
@@ -1088,7 +1098,7 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
 
     if (!isData) {
         // 1) Correlated JES systematics (only where both algos define the same custom base)
-        auto jesDetails = buildSystTagDetailJES(s4, s8);
+        auto jesDetails = buildSystTagDetailJES(sAK4, AK8);
         for (const auto& d : jesDetails) {
             std::cout<<"\n [JES Syst]: "<<d.systName()<<'\n';
             processEvents(inputFile, fout, year, false, era, d);
@@ -1104,9 +1114,6 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
 }
 
 
-//--------------------------------------------------
-// Run for multiple years, MC, Data
-//--------------------------------------------------
 /**
  * Macro entry point.  Configures the input files and years to process and
  * orchestrates running over MC and data samples.
@@ -1121,8 +1128,11 @@ void applyJercAndJvmOnNano() {
 
 
     std::vector<std::string> mcYears = {
-        "2017", 
-        //"2018"
+        //"2016Pre", 
+        //"2016Post",
+        //"2017",
+        //"2018",
+        "2022Pre"
     };
     std::vector<std::pair<std::string, std::string>> dataConfigs = {
         {"2017", "Era2017B"},
@@ -1130,13 +1140,17 @@ void applyJercAndJvmOnNano() {
     };
 
     for (const auto& year : mcYears) {
+        std::cout<<"-----------------" <<'\n';
         std::cout<<"[MC] : "<<year <<'\n';
+        std::cout<<"-----------------" <<'\n';
         processEventsWithNominalOrSyst(fInputMc, fout, year, /*isData=*/false);
     }
 
     for (const auto& [year, era] : dataConfigs) {
+        std::cout<<"-----------------"<<year <<'\n';
         std::cout<<"\n[Data] : "<<year <<" : "<<era <<'\n';
-        processEventsWithNominalOrSyst(fInputData, fout, year, /*isData=*/true, era);
+        std::cout<<"-----------------"<<year <<'\n';
+        //processEventsWithNominalOrSyst(fInputData, fout, year, /*isData=*/true, era);
     }
 
     fout.Write();
