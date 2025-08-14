@@ -943,13 +943,19 @@ static void processEvents(const std::string& inputFile,
     }
     CorrectionRefs refsAK8(tagsAK8);
 
-    // --- JVM (unchanged)
+    // --- JVM (skip gracefully if config missing for this year)
     auto cfgJvm   = loadJsonConfig("JvmFileAndTagNames.json");
-    const auto& y = cfgJvm.at(year);
-    const auto& jvmFile = getTagName(y, "jvmFilePath");
-    const auto& jvmTag  = getTagName(y, "jvmTagName");
-    const auto& jvmRef  = correction::CorrectionSet::from_file(jvmFile)->at(jvmTag);
-    const auto& jvmKey  = getTagName(y, "jvmKeyName");
+    correction::Correction::Ref jvmRef;
+    std::string jvmKey;
+    bool useJvm = false;
+    if (cfgJvm.contains(year)) {
+        const auto& y = cfgJvm.at(year);
+        const auto& jvmFile = getTagName(y, "jvmFilePath");
+        const auto& jvmTag  = getTagName(y, "jvmTagName");
+        jvmRef  = correction::CorrectionSet::from_file(jvmFile)->at(jvmTag);
+        jvmKey  = getTagName(y, "jvmKeyName");
+        useJvm  = true;
+    }
 
     // --- Chain & branches
     TChain chain("Events");
@@ -1054,7 +1060,7 @@ static void processEvents(const std::string& inputFile,
         // =========================
         // 4) Jet veto map
         // =========================
-        if (checkIfAnyJetInVetoRegion(jvmRef, jvmKey, nanoT)) {
+        if (useJvm && checkIfAnyJetInVetoRegion(jvmRef, jvmKey, nanoT)) {
             countVeto++;
             continue;
         }
