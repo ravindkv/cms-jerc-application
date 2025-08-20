@@ -28,7 +28,7 @@ Inspect the printed log and the produced `output.root` file to verify the correc
 1. **Central configuration JSONs**  
    The files [`JercFileAndTagNamesAK4.json`](ApplyOnNanoAOD/JercFileAndTagNamesAK4.json), [`JercFileAndTagNamesAK8.json`](ApplyOnNanoAOD/ercFileAndTagNamesAK8.json) and [`ApplyOnNanoAOD/JvmFileAndTagNames.json`](JvmFileAndTagNames.json) hold the official tag names for the JES, JER and JVM payloads.  Users no longer need to assemble these strings themselves; future updates are the responsibility of the JERC conveners.
 2. **Reference correction functions**  
-   [`applyJercAndJvm.C`](applyJercAndJvm.C) contains C++ implementations using `correctionlib`.  The accompanying [`applyJercAndJvm.py`](applyJercAndJvm.py) shows the same logic in Python.  Analysts can copy or adapt these routines for their analyses.
+   [`applyJercAndJvm.C`](ApplyOnNanoAOD/applyJercAndJvm.C) contains C++ implementations using `correctionlib`.  The accompanying [`applyJercAndJvm.py`](ApplyOnNanoAOD/applyJercAndJvm.py) shows the same logic in Python.  Analysts can copy or adapt these routines for their analyses.
 3. **Validation against an example output**  
    After integration, results can be compared to the histograms produced by the reference macro to ensure a faithful implementation.
 4. **Support for both AK4 and AK8 jets**  
