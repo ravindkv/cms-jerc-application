@@ -1,8 +1,8 @@
 # cms-jerc-application
 
-This package demonstrates how the JES, JER and jet veto map (JVM) provided by the JME-JERC subgroup can be applied on NanoAOD samples.  It is designed so that analysts can copy the supplied configuration files, integrate the correction routines into their own code and cross‑check their outputs against the reference implementation: https://github.com/ravindkv/cms-jerc-application
+This package demonstrates how the JES, JER and jet veto map (JVM) provided by the JME-JERC subgroup can be applied on NanoAOD or MiniAOD samples.  It is designed so that analysts can copy the supplied configuration files, integrate the correction routines into their own code and cross‑check their outputs against the reference implementation: https://github.com/ravindkv/cms-jerc-application
 
-## Running the example
+## Setup the package
 
 From a CMSSW environment (only needed for loading correctionlib):
 
@@ -11,23 +11,35 @@ ssh rverma@lxplus9.cern.ch
 cmsrel CMSSW_13_3_0 && cd CMSSW_13_3_0/src && cmsenv
 git clone git@github.com:ravindkv/cms-jerc-application.git
 cd cms-jerc-application
-root -b -q applyJercAndJvmOnNano.C
-# or
-python applyJercAndJvmOnNano.py
 ```
 
-Inspect the printed log and the produced `output.root` file to verify the corrections.  Analysts may use the supplied configuration and routines as templates for their own workflows, skipping the AK4 or AK8 sections as needed.
+## Apply on NanoAOD
+```bash
+cd ApplyOnNanoAOD 
+root -b -q applyJercAndJvm.C
+# or
+python applyJercAndJvm.py
+```
 
-## What this application provides
+Inspect the printed log and the produced `output.root` file to verify the corrections.  Analysts may use the supplied configuration and functions as templates for their own workflows, skipping the AK4 or AK8 sections as needed.
+
+### What this application provides
 
 1. **Central configuration JSONs**  
-   The files [`JercFileAndTagNamesAK4.json`](JercFileAndTagNamesAK4.json), [`JercFileAndTagNamesAK8.json`](JercFileAndTagNamesAK8.json) and [`JvmFileAndTagNames.json`](JvmFileAndTagNames.json) hold the official tag names for the JES, JER and JVM payloads.  Users no longer need to assemble these strings themselves; future updates are the responsibility of the JERC conveners.
+   The files [`JercFileAndTagNamesAK4.json`](ApplyOnNanoAOD/JercFileAndTagNamesAK4.json), [`JercFileAndTagNamesAK8.json`](ApplyOnNanoAOD/ercFileAndTagNamesAK8.json) and [`ApplyOnNanoAOD/JvmFileAndTagNames.json`](JvmFileAndTagNames.json) hold the official tag names for the JES, JER and JVM payloads.  Users no longer need to assemble these strings themselves; future updates are the responsibility of the JERC conveners.
 2. **Reference correction functions**  
-   [`applyJercAndJvmOnNano.C`](applyJercAndJvmOnNano.C) contains C++ implementations using `correctionlib`.  The accompanying [`applyJercAndJvmOnNano.py`](applyJercAndJvmOnNano.py) shows the same logic in Python.  Analysts can copy or adapt these routines for their analyses.
+   [`applyJercAndJvm.C`](applyJercAndJvm.C) contains C++ implementations using `correctionlib`.  The accompanying [`applyJercAndJvm.py`](applyJercAndJvm.py) shows the same logic in Python.  Analysts can copy or adapt these routines for their analyses.
 3. **Validation against an example output**  
    After integration, results can be compared to the histograms produced by the reference macro to ensure a faithful implementation.
 4. **Support for both AK4 and AK8 jets**  
    The package treats AK4 and AK8 jets in a unified way.  Analyses that only require one algorithm may simply ignore the other section.
+
+## Apply on MiniAOD
+To be implemented
+
+### What this application provides
+To be implemented
+
 
 ## Order of corrections
 

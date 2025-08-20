@@ -1,5 +1,5 @@
 /**
- * @file applyJercAndJvmOnNano.C
+ * @file applyJercAndJvm.C
  * @brief Example ROOT macro demonstrating how to apply jet energy corrections
  *        (JEC = JES correction + JER correction) and the jet veto map on
  *        NanoAOD samples.
@@ -13,13 +13,13 @@
  *
  * ```
  * cmsenv
- * root -b -q applyJercAndJvmOnNano.C
+ * root -b -q applyJercAndJvm.C
  * ```
  *
- * The entry point is the function `applyJercAndJvmOnNano()` defined at the end
+ * The entry point is the function `applyJercAndJvm()` defined at the end
  * of this file which configures the years and input files to process.
  */
-//applyJercAndJvmOnNano.C
+//applyJercAndJvm.C
 
 #if defined(__CLING__)
 #pragma cling add_include_path("$HOME/.local/lib/python3.9/site-packages/correctionlib/include")
@@ -1223,9 +1223,9 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
  * Macro entry point.  Configures the input files and years to process and
  * orchestrates running over MC and data samples.
  */
-void applyJercAndJvmOnNano() {
-    const std::string fInputData = "NanoAod_Data.root";
-    const std::string fInputMc   = "NanoAod_MC.root";
+void applyJercAndJvm() {
+    const std::string fInputData = "NanoAOD_Data.root";
+    const std::string fInputMc   = "NanoAOD_MC.root";
 
     // Prepare output file
     std::string outName = "output.root";

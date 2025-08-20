@@ -195,6 +195,6 @@ def main(input_file: str):
         print("="*20 + f" End of Event {i} " + "="*20 + "\n")
 
 if __name__ == "__main__":
-    infile = sys.argv[1] if len(sys.argv) > 1 else "NanoAod_Data.root"
+    infile = sys.argv[1] if len(sys.argv) > 1 else "NanoAOD_Data.root"
     main(infile)
 
