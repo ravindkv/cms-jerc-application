@@ -47,6 +47,12 @@
 #include <nlohmann/json.hpp>
 #include <correction.h>
 
+// Global flags to control which jet collections receive corrections.
+// Set only one of these to true to select the desired behaviour.
+bool applyOnlyOnAK4 = false;
+bool applyOnlyOnAK8 = false;
+bool applyOnAK4AndAK8 = true;
+
 // ---------------------------
 // NanoAOD flat branches
 // ---------------------------
@@ -1010,10 +1016,16 @@ static void processEvents(const std::string& inputFile,
         fillHist(H.hMET_Nano, nanoT.MET_pt);
 
         // --- select jet indices using helper functions
-        auto indicesAK8 = collectAK8Jets(nanoT, H.hJetPt_AK8_Nano);
-        auto indicesAK4 = collectAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
+        std::vector<UInt_t> indicesAK8;
+        if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+            indicesAK8 = collectAK8Jets(nanoT, H.hJetPt_AK8_Nano);
+        }
+        std::vector<UInt_t> indicesAK4;
+        if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+            indicesAK4 = collectAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
+        }
 
-        if(!indicesAK4.empty() && !indicesAK8.empty() && printCount==0){ printCount++; print = true; }
+        if((!indicesAK4.empty() || !indicesAK8.empty()) && printCount==0){ printCount++; print = true; }
 
         printDebug(print, spaces3, "MET From NanoAOD = ", nanoT.MET_pt);
 
@@ -1022,22 +1034,31 @@ static void processEvents(const std::string& inputFile,
         // =========================
         if (systTagDetail.isNominal()) {
             // In the nominal pass print the full per-jet breakdown
-            printDebug(print, spaces3, "AK4 (JES nominal)");
-            applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, print);
-            printDebug(print, spaces3, "MET After AK4 (JES nominal)  = ", nanoT.MET_pt);
+            if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+                printDebug(print, spaces3, "AK4 (JES nominal)");
+                applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, print);
+                printDebug(print, spaces3, "MET After AK4 (JES nominal)  = ", nanoT.MET_pt);
+            }
 
-            printDebug(print, spaces3, "AK8 (JES nominal)");
-            applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, print);
-            printDebug(print, spaces3, "MET After AK8 (JES nominal)  = ", nanoT.MET_pt);
+            if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+                printDebug(print, spaces3, "AK8 (JES nominal)");
+                applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, print);
+                printDebug(print, spaces3, "MET After AK8 (JES nominal)  = ", nanoT.MET_pt);
+            }
 
         } else {
             // For systematic shifts we still need to apply the nominal
             // corrections but skip the verbose printing to avoid repeating
             // the same information for each shift.
-            applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, false);
-            applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, false);
+            if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+                applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, false);
+            }
+            if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+                applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, false);
+            }
             printDebug(print, spaces3, "Nominal JES applied");
-            printDebug(print, spaces3, "MET After AK4+AK8 (JES nominal) = ", nanoT.MET_pt);
+            const char* collName = applyOnlyOnAK4 ? "AK4" : (applyOnlyOnAK8 ? "AK8" : "AK4+AK8");
+            printDebug(print, spaces3, "MET After ", collName, " (JES nominal) = ", nanoT.MET_pt);
         }
 
         // =========================
@@ -1045,11 +1066,15 @@ static void processEvents(const std::string& inputFile,
         // =========================
         if (!isData && systTagDetail.kind == SystKind::JES) {
             const auto& jesDetail = static_cast<const SystTagDetailJES&>(systTagDetail);
-            printDebug(print, spaces3, "AK4 (JES ", jesDetail.var, ")");
-            applySystShiftJES<AK4Specs>(nanoT, refsAK4, jesDetail.tagAK4, jesDetail.var, indicesAK4, print);
+            if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+                printDebug(print, spaces3, "AK4 (JES ", jesDetail.var, ")");
+                applySystShiftJES<AK4Specs>(nanoT, refsAK4, jesDetail.tagAK4, jesDetail.var, indicesAK4, print);
+            }
 
-            printDebug(print, spaces3, "AK8 (JES ", jesDetail.var, ")");
-            applySystShiftJES<AK8Specs>(nanoT, refsAK8, jesDetail.tagAK8, jesDetail.var, indicesAK8, print);
+            if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+                printDebug(print, spaces3, "AK8 (JES ", jesDetail.var, ")");
+                applySystShiftJES<AK8Specs>(nanoT, refsAK8, jesDetail.tagAK8, jesDetail.var, indicesAK8, print);
+            }
 
             printDebug(print, spaces3, "MET After (JES ", jesDetail.var, ") = ", nanoT.MET_pt);
         }
@@ -1061,23 +1086,31 @@ static void processEvents(const std::string& inputFile,
             if (systTagDetail.kind == SystKind::JER) {
                 const auto& jerDetail = static_cast<const SystTagDetailJER&>(systTagDetail);
                 // up/down only in the specified region; outside region use "nom"
-                printDebug(print, spaces3, "AK4 (JER ", jerDetail.var, ")");
-                applyJERNominalOrShift<AK4Specs>(nanoT, year, refsAK4, indicesAK4,
-                                       std::string(jerDetail.var == "Up" ? "up":"down"),
-                                       jerDetail.jerRegion, print);
+                if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+                    printDebug(print, spaces3, "AK4 (JER ", jerDetail.var, ")");
+                    applyJERNominalOrShift<AK4Specs>(nanoT, year, refsAK4, indicesAK4,
+                                           std::string(jerDetail.var == "Up" ? "up":"down"),
+                                           jerDetail.jerRegion, print);
+                }
 
-                printDebug(print, spaces3, "AK8 (JER ", jerDetail.var, ")");
-                applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8,
-                                       std::string(jerDetail.var == "Up" ? "up":"down"),
-                                       jerDetail.jerRegion, print);
+                if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+                    printDebug(print, spaces3, "AK8 (JER ", jerDetail.var, ")");
+                    applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8,
+                                           std::string(jerDetail.var == "Up" ? "up":"down"),
+                                           jerDetail.jerRegion, print);
+                }
                 printDebug(print, spaces3, "MET After (JER ", jerDetail.var, ") = ", nanoT.MET_pt);
             } else {
                 // Nominal or JES pass → apply JER(nom) to all jets
                 printDebug(print, spaces3, "===>");
-                printDebug(print, spaces3, "AK4 (JER nom)");
-                applyJERNominalOrShift<AK4Specs>(nanoT, year, refsAK4, indicesAK4, "nom", std::nullopt, print);
-                printDebug(print, spaces3, "AK8 (JER nom)");
-                applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8, "nom", std::nullopt, print);
+                if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+                    printDebug(print, spaces3, "AK4 (JER nom)");
+                    applyJERNominalOrShift<AK4Specs>(nanoT, year, refsAK4, indicesAK4, "nom", std::nullopt, print);
+                }
+                if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+                    printDebug(print, spaces3, "AK8 (JER nom)");
+                    applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8, "nom", std::nullopt, print);
+                }
                 printDebug(print, spaces3, "MET After (JER nominal) = ", nanoT.MET_pt);
             }
         }
@@ -1136,8 +1169,41 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
     processEvents(inputFile, fout, year, isData, era, SystTagDetail{});
 
     if (!isData) {
-        // 1) Correlated JES systematics (only where both algos define the same custom base)
-        auto jesDetails = buildSystTagDetailJES(sAK4, sAK8);
+        // 1) Correlated JES systematics
+        std::vector<SystTagDetailJES> jesDetails;
+        if (applyOnlyOnAK4) {
+            for (const auto& [set, pairs] : sAK4) {
+                for (const auto& p : pairs) {
+                    for (const char* var : {"Up","Down"}) {
+                        SystTagDetailJES d;
+                        d.setName = set;
+                        d.var = var;
+                        d.kind = SystKind::JES;
+                        d.tagAK4 = p.first;
+                        d.tagAK8.clear();
+                        d.baseTag = p.second;
+                        jesDetails.push_back(d);
+                    }
+                }
+            }
+        } else if (applyOnlyOnAK8) {
+            for (const auto& [set, pairs] : sAK8) {
+                for (const auto& p : pairs) {
+                    for (const char* var : {"Up","Down"}) {
+                        SystTagDetailJES d;
+                        d.setName = set;
+                        d.var = var;
+                        d.kind = SystKind::JES;
+                        d.tagAK4.clear();
+                        d.tagAK8 = p.first;
+                        d.baseTag = p.second;
+                        jesDetails.push_back(d);
+                    }
+                }
+            }
+        } else {
+            jesDetails = buildSystTagDetailJES(sAK4, sAK8);
+        }
         for (const auto& d : jesDetails) {
             std::cout<<"\n [JES Syst]: "<<d.systName()<<'\n';
             processEvents(inputFile, fout, year, false, era, d);
