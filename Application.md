@@ -26,7 +26,7 @@ Inspect the printed log and the produced `output.root` file to verify the correc
 ### What this application provides
 
 1. **Central configuration JSONs**  
-   The files [`JercFileAndTagNamesAK4.json`](ApplyOnNanoAOD/JercFileAndTagNamesAK4.json), [`JercFileAndTagNamesAK8.json`](ApplyOnNanoAOD/ercFileAndTagNamesAK8.json) and [`ApplyOnNanoAOD/JvmFileAndTagNames.json`](JvmFileAndTagNames.json) hold the official tag names for the JES, JER and JVM payloads.  Users no longer need to assemble these strings themselves; future updates are the responsibility of the JERC conveners.
+   The files [`JercFileAndTagNamesAK4.json`](ApplyOnNanoAOD/JercFileAndTagNamesAK4.json), [`JercFileAndTagNamesAK8.json`](ApplyOnNanoAOD/jercFileAndTagNamesAK8.json) and [`JvmFileAndTagNames.json`](ApplyOnNanoAOD/JvmFileAndTagNames.json) hold the official tag names for the JES, JER and JVM payloads.  Users no longer need to assemble these strings themselves; future updates are the responsibility of the JERC conveners.
 2. **Reference correction functions**  
    [`applyJercAndJvm.C`](ApplyOnNanoAOD/applyJercAndJvm.C) contains C++ implementations using `correctionlib`.  The accompanying [`applyJercAndJvm.py`](ApplyOnNanoAOD/applyJercAndJvm.py) shows the same logic in Python.  Analysts can copy or adapt these routines for their analyses.
 3. **Validation against an example output**  
