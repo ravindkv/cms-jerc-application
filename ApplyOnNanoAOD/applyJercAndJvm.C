@@ -52,6 +52,8 @@
 bool applyOnlyOnAK4 = false;
 bool applyOnlyOnAK8 = false;
 bool applyOnAK4AndAK8 = true;
+// Control whether jet energy corrections are propagated to MET
+bool propagateOnMet = true;
 
 // ---------------------------
 // NanoAOD flat branches
@@ -416,7 +418,7 @@ void applyJESNominal(NanoTree& nanoT,
                                           ", area= ", Specs::getArea(nanoT,idx),
                                           ", rawFactor= ", Specs::getRawFactor(nanoT,idx)
                                           );
-        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
+        if (propagateOnMet) nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
         printDebug(print, spaces6, "default NanoAod  Pt=", Specs::getPt(nanoT,idx));
 
         // Raw pT (undo the default JES correction applied in NanoAOD)
@@ -472,7 +474,7 @@ void applyJESNominal(NanoTree& nanoT,
           Specs::applyCorrection(nanoT, idx, cR);
           printDebug(print, spaces6, "after L2L3Residual Pt=", Specs::getPt(nanoT,idx));
         }
-        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
+        if (propagateOnMet) nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
     }
 }
 
@@ -526,7 +528,7 @@ void applyJERNominalOrShift(NanoTree& nanoT,
             useVar = var;
         }
 
-        nanoT.MET_pt += Specs::getPt(nanoT, idx); //add MET to jet
+        if (propagateOnMet) nanoT.MET_pt += Specs::getPt(nanoT, idx); //add MET to jet
 
         const double reso = refs.corrRefJerReso->evaluate({ etaJet, ptJet, nanoT.Rho });
         double sf = 1.0;
@@ -570,7 +572,7 @@ void applyJERNominalOrShift(NanoTree& nanoT,
         }
         printDebug(print, spaces5, "JER(", useVar, ") smeared Pt=", Specs::getPt(nanoT, idx), extra);
 
-        nanoT.MET_pt -= Specs::getPt(nanoT, idx);//substract MET from jet
+        if (propagateOnMet) nanoT.MET_pt -= Specs::getPt(nanoT, idx);//substract MET from jet
     }
 }
 
@@ -784,7 +786,7 @@ void applySystShiftJES(NanoTree& nanoT,
 {
     auto systCorr = safeGet(refs.cs, systName);
     for(auto idx: idxs){
-        nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
+        if (propagateOnMet) nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
 
         printDebug(print, spaces4, "[Jet] index=", idx);
         printDebug(print, spaces5, "Nominal corrected    Pt=", Specs::getPt(nanoT,idx));
@@ -793,7 +795,7 @@ void applySystShiftJES(NanoTree& nanoT,
         Specs::applyCorrection(nanoT, idx, shift);
         printDebug(print, spaces5, "Syst corrected    Pt=", Specs::getPt(nanoT,idx));
 
-        nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
+        if (propagateOnMet) nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
     }
 }
 
