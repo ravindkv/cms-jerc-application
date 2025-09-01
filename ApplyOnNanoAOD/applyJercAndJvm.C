@@ -972,11 +972,14 @@ static TDirectory* getOrMkdir(TDirectory* parent, const std::string& name) {
 
 /**
  * Create and organise the monitoring histograms in the output file.  The
- * directory structure is `year/type/systematicSet/systematicName`.
+ * directory structure is `year/type/systematicSet/systematicName`.  For data
+ * samples the optional `era` is inserted between `type` and `systematicSet`
+ * to avoid histogram name clashes across eras.
  */
 static Hists makeHists(TFile& fout,
                        const std::string& year,
                        bool isData,
+                       const std::optional<std::string>& era,
                        const std::string& systSetName,
                        const std::string& systName,
                        bool alsoNano = false)
@@ -984,7 +987,10 @@ static Hists makeHists(TFile& fout,
     auto* yearDir = dynamic_cast<TDirectory*>(fout.Get(year.c_str()));
     if (!yearDir) yearDir = fout.mkdir(year.c_str());
 
-    auto* typeDir = getOrMkdir(yearDir, isData ? "Data" : "MC");
+    TDirectory* typeDir = getOrMkdir(yearDir, isData ? "Data" : "MC");
+    if (isData && era) {
+        typeDir = getOrMkdir(typeDir, *era);
+    }
     auto* setDir  = getOrMkdir(typeDir, systSetName);
     auto* passDir = getOrMkdir(setDir, systName);
     passDir->cd();
@@ -1099,7 +1105,8 @@ static void processEvents(const std::string& inputFile,
     setupNanoBranches(&chain, nanoT, isData);
 
     const bool writeNano = systTagDetail.isNominal(); // write once in Nominal pass
-    Hists H = makeHists(fout, year, isData, systTagDetail.systSetName(), systTagDetail.systName(), writeNano);
+    Hists H = makeHists(fout, year, isData, era, systTagDetail.systSetName(),
+                        systTagDetail.systName(), writeNano);
 
     const Long64_t nEntries = chain.GetEntries();
     int countVeto = 0;
