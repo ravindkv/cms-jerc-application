@@ -791,32 +791,24 @@ void applySystShiftJES(NanoTree& nanoT,
     }
 }
 
-// Propagate the effect of jet corrections to MET using the stored raw jet pT.
+// Propagate the effect of jet corrections to MET using the stored raw jet pT
+// for a single jet collection.
+template <typename Specs>
 void applyCorrectionOnMet(NanoTree& nanoT,
-                          const std::vector<UInt_t>& idxsAK4,
-                          const std::vector<double>& rawPtAK4,
-                          const std::vector<UInt_t>& idxsAK8,
-                          const std::vector<double>& rawPtAK8) {
+                          const std::vector<UInt_t>& idxs,
+                          const std::vector<double>& rawPts) {
     double met_px = nanoT.MET_pt * std::cos(nanoT.MET_phi);
     double met_py = nanoT.MET_pt * std::sin(nanoT.MET_phi);
 
-    auto propagate = [&](const std::vector<UInt_t>& idxs,
-                         const std::vector<double>& rawPts,
-                         auto getPt,
-                         auto getPhi) {
-        for (size_t i = 0; i < idxs.size(); ++i) {
-            const UInt_t idx = idxs[i];
-            const double rawPt = rawPts[i];
-            const double corrPt = getPt(nanoT, idx);
-            const double phi = getPhi(nanoT, idx);
-            const double dpt = corrPt - rawPt;
-            met_px -= dpt * std::cos(phi);
-            met_py -= dpt * std::sin(phi);
-        }
-    };
-
-    propagate(idxsAK4, rawPtAK4, AK4Specs::getPt, AK4Specs::getPhi);
-    propagate(idxsAK8, rawPtAK8, AK8Specs::getPt, AK8Specs::getPhi);
+    for (size_t i = 0; i < idxs.size(); ++i) {
+        const UInt_t idx = idxs[i];
+        const double rawPt = rawPts[i];
+        const double corrPt = Specs::getPt(nanoT, idx);
+        const double phi = Specs::getPhi(nanoT, idx);
+        const double dpt = corrPt - rawPt;
+        met_px -= dpt * std::cos(phi);
+        met_py -= dpt * std::sin(phi);
+    }
 
     nanoT.MET_pt  = std::hypot(met_px, met_py);
     nanoT.MET_phi = std::atan2(met_py, met_px);
@@ -1141,7 +1133,14 @@ static void processEvents(const std::string& inputFile,
 
         // propagate jet corrections to MET once all jets are corrected
         if (propagateOnMet) {
-            applyCorrectionOnMet(nanoT, indicesAK4, rawPtAK4, indicesAK8, rawPtAK8);
+            if (applyOnlyOnAK4) {
+                applyCorrectionOnMet<AK4Specs>(nanoT, indicesAK4, rawPtAK4);
+            } else if (applyOnlyOnAK8) {
+                applyCorrectionOnMet<AK8Specs>(nanoT, indicesAK8, rawPtAK8);
+            } else if (applyOnAK4AndAK8) {
+                applyCorrectionOnMet<AK4Specs>(nanoT, indicesAK4, rawPtAK4);
+                applyCorrectionOnMet<AK8Specs>(nanoT, indicesAK8, rawPtAK8);
+            }
         }
         printDebug(print, spaces3, "MET after JERC = ", nanoT.MET_pt);
         print = false;
