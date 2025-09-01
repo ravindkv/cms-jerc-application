@@ -70,12 +70,17 @@ struct NanoTree {
     Float_t   Rho{};
     Float_t   MET_pt{};
     Float_t   MET_phi{};
+    Float_t   RawMET_pt{};
+    Float_t   RawMET_phi{};
+    Float_t   RawPuppiMET_phi{};
+    Float_t   RawPuppiMET_pt{};
     Int_t     nJet{};
     Float_t   Jet_pt[200]{};
     Float_t   Jet_eta[200]{};
     Float_t   Jet_phi[200]{};
     Float_t   Jet_mass[200]{};
     Float_t   Jet_rawFactor[200]{};
+    Float_t   Jet_muonSubtrFactor[200]{};
     Float_t   Jet_area[200]{};
     UChar_t   Jet_jetId[200]{};
     Short_t   Jet_genJetIdx[200]{};
@@ -123,12 +128,17 @@ void setupNanoBranches(TChain* chain, NanoTree& nanoT, bool isData) {
     chain->SetBranchAddress("Rho_fixedGridRhoFastjetAll", &nanoT.Rho);
     chain->SetBranchAddress("MET_pt", &nanoT.MET_pt);
     chain->SetBranchAddress("MET_phi", &nanoT.MET_phi);
+    chain->SetBranchAddress("RawMET_pt", &nanoT.RawMET_pt);
+    chain->SetBranchAddress("RawMET_phi", &nanoT.RawMET_phi);
+    chain->SetBranchAddress("RawPuppiMET_pt", &nanoT.RawPuppiMET_pt);
+    chain->SetBranchAddress("RawPuppiMET_phi", &nanoT.RawPuppiMET_phi);
     chain->SetBranchAddress("nJet", &nanoT.nJet);
     chain->SetBranchAddress("Jet_pt", &nanoT.Jet_pt);
     chain->SetBranchAddress("Jet_eta", &nanoT.Jet_eta);
     chain->SetBranchAddress("Jet_phi", &nanoT.Jet_phi);
     chain->SetBranchAddress("Jet_mass", &nanoT.Jet_mass);
     chain->SetBranchAddress("Jet_rawFactor", &nanoT.Jet_rawFactor);
+	chain->SetBranchAddress("Jet_muonSubtrFactor"  , &nanoT.Jet_muonSubtrFactor);
     chain->SetBranchAddress("Jet_area", &nanoT.Jet_area);
     chain->SetBranchAddress("Jet_jetId", &nanoT.Jet_jetId);
 	chain->SetBranchAddress("Jet_chEmEF"  , &nanoT.Jet_chEmEF);
@@ -173,6 +183,9 @@ struct AK4Specs {
   static Float_t  getPhi(const NanoTree& nt, UInt_t i) { return nt.Jet_phi[i]; }
   static Float_t  getRawFactor(const NanoTree& nt, UInt_t i){ return nt.Jet_rawFactor[i]; }
   static Float_t  getArea(const NanoTree& nt, UInt_t i)     { return nt.Jet_area[i]; }
+  static Float_t  getChmEf(const NanoTree& nt, UInt_t i)     { return nt.Jet_chEmEF[i]; }
+  static Float_t  getNeEmEF(const NanoTree& nt, UInt_t i)     { return nt.Jet_neEmEF[i]; }
+  static Float_t  getMuonSubtrFactor(const NanoTree& nt, UInt_t i)     { return nt.Jet_muonSubtrFactor[i]; }
   static TLorentzVector makeTLorentzVector(const NanoTree& nt, UInt_t i){
     TLorentzVector p4; 
     p4.SetPtEtaPhiM(nt.Jet_pt[i], nt.Jet_eta[i], nt.Jet_phi[i], nt.Jet_mass[i]); 
@@ -794,24 +807,90 @@ void applySystShiftJES(NanoTree& nanoT,
 // Propagate the effect of jet corrections to MET using the stored raw jet pT
 // for a single jet collection.
 template <typename Specs>
-void applyCorrectionOnMet(NanoTree& nanoT,
-                          const std::vector<UInt_t>& idxs,
-                          const std::vector<double>& rawPts) {
-    double met_px = nanoT.MET_pt * std::cos(nanoT.MET_phi);
-    double met_py = nanoT.MET_pt * std::sin(nanoT.MET_phi);
-
+TLorentzVector getCorrectedMet(NanoTree& nanoT,
+                       std::string year,
+                       CorrectionRefs& refs,
+                       bool isData,
+                       const std::vector<UInt_t>& idxs,
+                       const std::vector<double>& rawPts) {
+    double met_px = nanoT.RawMET_pt * std::cos(nanoT.RawMET_phi);
+    double met_py = nanoT.RawMET_pt * std::sin(nanoT.RawMET_phi);
+    if(year=="2022Pre" ||year=="2022Post" ||year=="2023Pre" || year=="2023Post" || year=="2024"){
+        met_px = nanoT.RawPuppiMET_pt * std::cos(nanoT.RawPuppiMET_phi);
+        met_py = nanoT.RawPuppiMET_pt * std::sin(nanoT.RawPuppiMET_phi);
+    }
     for (size_t i = 0; i < idxs.size(); ++i) {
         const UInt_t idx = idxs[i];
-        const double rawPt = rawPts[i];
-        const double corrPt = Specs::getPt(nanoT, idx);
         const double phi = Specs::getPhi(nanoT, idx);
-        const double dpt = corrPt - rawPt;
+        const double eta = Specs::getEta(nanoT, idx);
+        const double area= Specs::getArea(nanoT, idx);
+
+        //Recompute corrections on muon-subracted raw jet pT
+        const double pt_raw_minusMuon = rawPts[idx]* (1-Specs::getMuonSubtrFactor(nanoT,idx));
+        double pt_corr   = pt_raw_minusMuon;
+        // L1FastJet (aka Pileup correction)
+        double c1 = refs.corrRefJesL1FastJet->evaluate({ Specs::getArea(nanoT,idx),
+                                            Specs::getEta(nanoT,idx),
+                                            pt_corr,
+                                            nanoT.Rho });
+        pt_corr   *= c1;  
+        // catch L1Rc pT right after L1Rc step 
+        double pt_corr_l1rc = pt_corr;
+
+        // L2Relative (aka MCTruth correction)
+        double c2 = 1.0;
+        if(year=="2023Post" || year=="2024"){
+            c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
+                                            Specs::getPhi(nanoT,idx),
+                                            pt_corr });
+        }else{
+            c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
+                                            pt_corr });
+        }
+        pt_corr   *= c2;  
+
+        //L2L3Residual (L2Residual + L3Residual together) on data only 
+        //(to cover residual differences between Data/MC)
+        if(isData){
+          double cR = 1.0;
+          if(year=="2023Pre" || year=="2023Post" || year=="2024"){
+            double runNumber = static_cast<double>(nanoT.run);
+            /**
+             * Since we currently have a tiny NanoAod_Data.root file where we do
+             * not have run numbers from multuple years. So temporarily we choose
+             * the lower bound for each year to excecute the code
+             */  
+            // 2023Pre: run edges : [367080.0, 367765.0, 369802.0] 
+            // 2023Post: run edges : [369803.0, 372415.0]
+            // 2024: run edges[379412.0, 380253.0, 380948.0, ..., 386409.0, 387121.0]
+            if(year=="2023Pre") runNumber = 367080.0;
+            if(year=="2023Post") runNumber = 369803.0;
+            if(year=="2024") runNumber = 379412.0;
+            cR = refs.corrRefJesL2ResL3Res->evaluate({runNumber,
+                                                      Specs::getEta(nanoT,idx),
+                                                      pt_corr });
+          }else{
+            cR = refs.corrRefJesL2ResL3Res->evaluate({ Specs::getEta(nanoT,idx),
+                                                      pt_corr });
+          }
+          pt_corr   *= cR;  
+        }
+        // selection for propagation
+        const bool passSel = (pt_corr > 15.0
+                             && std::abs(eta) < 5.2
+                             && (Specs::getChmEf(nanoT,idx) + Specs::getNeEmEF(nanoT,idx)) < 0.9
+                             );
+        if (!passSel) continue;
+        const double dpt = (pt_corr - pt_corr_l1rc);// we put scaled pT due to L2Rel, Residual, JER
         met_px -= dpt * std::cos(phi);
         met_py -= dpt * std::sin(phi);
     }
-
-    nanoT.MET_pt  = std::hypot(met_px, met_py);
-    nanoT.MET_phi = std::atan2(met_py, met_px);
+    // finalize MET
+    const double met_pt  = std::hypot(met_px, met_py);
+    const double met_phi = std::atan2(met_py, met_px);
+    TLorentzVector p4MetCorr; 
+    p4MetCorr.SetPtEtaPhiM(met_pt, 0, met_phi, 0);
+    return p4MetCorr;
 }
 
 
@@ -946,7 +1025,7 @@ std::vector<UInt_t> collectAK8Jets(const NanoTree& nanoT, TH1F* hNano) {
  * Jets failing the basic kinematic requirements are discarded.  If provided, a
  * histogram of the NanoAOD jet \f$p_T\f$ is filled.
  */
-std::vector<UInt_t> collectAK4Jets(const NanoTree& nanoT,
+std::vector<UInt_t> collectNonOverlappingAK4Jets(const NanoTree& nanoT,
                                    const std::vector<UInt_t>& ak8Idxs,
                                    TH1F* hNano) {
     std::vector<UInt_t> idxs;
@@ -1039,15 +1118,13 @@ static void processEvents(const std::string& inputFile,
         }
         std::vector<UInt_t> indicesAK4;
         if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
-            indicesAK4 = collectAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
+            indicesAK4 = collectNonOverlappingAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
         }
 
         // store raw jet pT for MET propagation
-        std::vector<double> rawPtAK4, rawPtAK8;
+        std::vector<double> rawPtAK4;
         rawPtAK4.reserve(indicesAK4.size());
-        rawPtAK8.reserve(indicesAK8.size());
-        for (auto idx : indicesAK4) rawPtAK4.push_back(nanoT.Jet_pt[idx]);
-        for (auto idx : indicesAK8) rawPtAK8.push_back(nanoT.FatJet_pt[idx]);
+        for (auto idx : indicesAK4) rawPtAK4.push_back((1- nanoT.Jet_rawFactor[idx])*nanoT.Jet_pt[idx]);
 
         if((!indicesAK4.empty() || !indicesAK8.empty()) && printCount==0){ printCount++; print = true; }
 
@@ -1131,24 +1208,18 @@ static void processEvents(const std::string& inputFile,
             }
         }
 
-        // propagate jet corrections to MET once all jets are corrected
-        if (propagateOnMet) {
-            if (applyOnlyOnAK4) {
-                applyCorrectionOnMet<AK4Specs>(nanoT, indicesAK4, rawPtAK4);
-            } else if (applyOnlyOnAK8) {
-                applyCorrectionOnMet<AK8Specs>(nanoT, indicesAK8, rawPtAK8);
-            } else if (applyOnAK4AndAK8) {
-                applyCorrectionOnMet<AK4Specs>(nanoT, indicesAK4, rawPtAK4);
-                applyCorrectionOnMet<AK8Specs>(nanoT, indicesAK8, rawPtAK8);
-            }
-        }
-        printDebug(print, spaces3, "MET after JERC = ", nanoT.MET_pt);
-        print = false;
-
         // Fill hists
         for (auto idx : indicesAK4) H.hJetPt_AK4->Fill(nanoT.Jet_pt[idx]);
         for (auto idx : indicesAK8) H.hJetPt_AK8->Fill(nanoT.FatJet_pt[idx]);
-        H.hMET->Fill(nanoT.MET_pt);
+
+        // propagate jet corrections to MET once all jets are corrected
+        if (propagateOnMet) {//Propagated ONLY through ALL AK4
+            TLorentzVector p4CorrectedMET = getCorrectedMet<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, rawPtAK4);
+            printDebug(print, spaces3, "MET after JERC = ", p4CorrectedMET.Pt());
+            H.hMET->Fill(p4CorrectedMET.Pt());
+        }
+        print = false;
+
 
         // =========================
         // 4) Jet veto map
@@ -1251,8 +1322,8 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
  * orchestrates running over MC and data samples.
  */
 void applyJercAndJvm() {
-    const std::string fInputData = "NanoAOD_Data.root";
-    const std::string fInputMc   = "NanoAOD_MC.root";
+    const std::string fInputData = "NanoAOD_Data_New.root";
+    const std::string fInputMc   = "NanoAOD_MC_New.root";
 
     // Prepare output file
     std::string outName = "output.root";
