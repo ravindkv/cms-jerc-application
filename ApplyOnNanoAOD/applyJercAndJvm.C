@@ -418,7 +418,6 @@ void applyJESNominal(NanoTree& nanoT,
                                           ", area= ", Specs::getArea(nanoT,idx),
                                           ", rawFactor= ", Specs::getRawFactor(nanoT,idx)
                                           );
-        if (propagateOnMet) nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
         printDebug(print, spaces6, "default NanoAod  Pt=", Specs::getPt(nanoT,idx));
 
         // Raw pT (undo the default JES correction applied in NanoAOD)
@@ -474,7 +473,6 @@ void applyJESNominal(NanoTree& nanoT,
           Specs::applyCorrection(nanoT, idx, cR);
           printDebug(print, spaces6, "after L2L3Residual Pt=", Specs::getPt(nanoT,idx));
         }
-        if (propagateOnMet) nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
     }
 }
 
@@ -528,8 +526,6 @@ void applyJERNominalOrShift(NanoTree& nanoT,
             useVar = var;
         }
 
-        if (propagateOnMet) nanoT.MET_pt += Specs::getPt(nanoT, idx); //add MET to jet
-
         const double reso = refs.corrRefJerReso->evaluate({ etaJet, ptJet, nanoT.Rho });
         double sf = 1.0;
         if(year=="2022Pre" || year=="2022Post" || year=="2023Pre" || year=="2023Post" || year=="2024"){
@@ -572,7 +568,6 @@ void applyJERNominalOrShift(NanoTree& nanoT,
         }
         printDebug(print, spaces5, "JER(", useVar, ") smeared Pt=", Specs::getPt(nanoT, idx), extra);
 
-        if (propagateOnMet) nanoT.MET_pt -= Specs::getPt(nanoT, idx);//substract MET from jet
     }
 }
 
@@ -786,8 +781,6 @@ void applySystShiftJES(NanoTree& nanoT,
 {
     auto systCorr = safeGet(refs.cs, systName);
     for(auto idx: idxs){
-        if (propagateOnMet) nanoT.MET_pt += Specs::getPt(nanoT,idx);//add MET to jet
-
         printDebug(print, spaces4, "[Jet] index=", idx);
         printDebug(print, spaces5, "Nominal corrected    Pt=", Specs::getPt(nanoT,idx));
         double scale = systCorr->evaluate({ Specs::getEta(nanoT,idx), Specs::getPt(nanoT,idx) });
@@ -795,8 +788,38 @@ void applySystShiftJES(NanoTree& nanoT,
         Specs::applyCorrection(nanoT, idx, shift);
         printDebug(print, spaces5, "Syst corrected    Pt=", Specs::getPt(nanoT,idx));
 
-        if (propagateOnMet) nanoT.MET_pt -= Specs::getPt(nanoT,idx);//substract MET from jet
     }
+}
+
+// Propagate the effect of jet corrections to MET using the stored raw jet pT.
+void applyCorrectionOnMet(NanoTree& nanoT,
+                          const std::vector<UInt_t>& idxsAK4,
+                          const std::vector<double>& rawPtAK4,
+                          const std::vector<UInt_t>& idxsAK8,
+                          const std::vector<double>& rawPtAK8) {
+    double met_px = nanoT.MET_pt * std::cos(nanoT.MET_phi);
+    double met_py = nanoT.MET_pt * std::sin(nanoT.MET_phi);
+
+    auto propagate = [&](const std::vector<UInt_t>& idxs,
+                         const std::vector<double>& rawPts,
+                         auto getPt,
+                         auto getPhi) {
+        for (size_t i = 0; i < idxs.size(); ++i) {
+            const UInt_t idx = idxs[i];
+            const double rawPt = rawPts[i];
+            const double corrPt = getPt(nanoT, idx);
+            const double phi = getPhi(nanoT, idx);
+            const double dpt = corrPt - rawPt;
+            met_px -= dpt * std::cos(phi);
+            met_py -= dpt * std::sin(phi);
+        }
+    };
+
+    propagate(idxsAK4, rawPtAK4, AK4Specs::getPt, AK4Specs::getPhi);
+    propagate(idxsAK8, rawPtAK8, AK8Specs::getPt, AK8Specs::getPhi);
+
+    nanoT.MET_pt  = std::hypot(met_px, met_py);
+    nanoT.MET_phi = std::atan2(met_py, met_px);
 }
 
 
@@ -1027,6 +1050,13 @@ static void processEvents(const std::string& inputFile,
             indicesAK4 = collectAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
         }
 
+        // store raw jet pT for MET propagation
+        std::vector<double> rawPtAK4, rawPtAK8;
+        rawPtAK4.reserve(indicesAK4.size());
+        rawPtAK8.reserve(indicesAK8.size());
+        for (auto idx : indicesAK4) rawPtAK4.push_back(nanoT.Jet_pt[idx]);
+        for (auto idx : indicesAK8) rawPtAK8.push_back(nanoT.FatJet_pt[idx]);
+
         if((!indicesAK4.empty() || !indicesAK8.empty()) && printCount==0){ printCount++; print = true; }
 
         printDebug(print, spaces3, "MET From NanoAOD = ", nanoT.MET_pt);
@@ -1039,13 +1069,11 @@ static void processEvents(const std::string& inputFile,
             if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
                 printDebug(print, spaces3, "AK4 (JES nominal)");
                 applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, print);
-                printDebug(print, spaces3, "MET After AK4 (JES nominal)  = ", nanoT.MET_pt);
             }
 
             if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
                 printDebug(print, spaces3, "AK8 (JES nominal)");
                 applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, print);
-                printDebug(print, spaces3, "MET After AK8 (JES nominal)  = ", nanoT.MET_pt);
             }
 
         } else {
@@ -1059,8 +1087,6 @@ static void processEvents(const std::string& inputFile,
                 applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, false);
             }
             printDebug(print, spaces3, "Nominal JES applied");
-            const char* collName = applyOnlyOnAK4 ? "AK4" : (applyOnlyOnAK8 ? "AK8" : "AK4+AK8");
-            printDebug(print, spaces3, "MET After ", collName, " (JES nominal) = ", nanoT.MET_pt);
         }
 
         // =========================
@@ -1077,8 +1103,6 @@ static void processEvents(const std::string& inputFile,
                 printDebug(print, spaces3, "AK8 (JES ", jesDetail.var, ")");
                 applySystShiftJES<AK8Specs>(nanoT, refsAK8, jesDetail.tagAK8, jesDetail.var, indicesAK8, print);
             }
-
-            printDebug(print, spaces3, "MET After (JES ", jesDetail.var, ") = ", nanoT.MET_pt);
         }
 
         // =========================
@@ -1101,7 +1125,6 @@ static void processEvents(const std::string& inputFile,
                                            std::string(jerDetail.var == "Up" ? "up":"down"),
                                            jerDetail.jerRegion, print);
                 }
-                printDebug(print, spaces3, "MET After (JER ", jerDetail.var, ") = ", nanoT.MET_pt);
             } else {
                 // Nominal or JES pass → apply JER(nom) to all jets
                 printDebug(print, spaces3, "===>");
@@ -1113,10 +1136,13 @@ static void processEvents(const std::string& inputFile,
                     printDebug(print, spaces3, "AK8 (JER nom)");
                     applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8, "nom", std::nullopt, print);
                 }
-                printDebug(print, spaces3, "MET After (JER nominal) = ", nanoT.MET_pt);
             }
         }
 
+        // propagate jet corrections to MET once all jets are corrected
+        if (propagateOnMet) {
+            applyCorrectionOnMet(nanoT, indicesAK4, rawPtAK4, indicesAK8, rawPtAK8);
+        }
         printDebug(print, spaces3, "MET after JERC = ", nanoT.MET_pt);
         print = false;
 
