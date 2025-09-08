@@ -103,12 +103,6 @@ struct NanoTree {
     Float_t   GenJetAK8_pt[200]{};
     Float_t   GenJetAK8_eta[200]{};
     Float_t   GenJetAK8_phi[200]{};
-    Int_t nMuon{};
-    Float_t Muon_pt[100]{};
-    Float_t Muon_eta[100]{};
-    Float_t Muon_phi[100]{};
-    Float_t Muon_mass[100]{};
-    Bool_t Muon_tightId[100]{};
 };
 
 /**
@@ -151,12 +145,6 @@ void setupNanoBranches(TChain* chain, NanoTree& nanoT, bool isData) {
     chain->SetBranchAddress("FatJet_rawFactor", &nanoT.FatJet_rawFactor);
     chain->SetBranchAddress("FatJet_area", &nanoT.FatJet_area);
     chain->SetBranchAddress("FatJet_jetId", &nanoT.FatJet_jetId);
-	chain->SetBranchAddress("nMuon", &nanoT.nMuon);
-	chain->SetBranchAddress("Muon_pt", &nanoT.Muon_pt);
-	chain->SetBranchAddress("Muon_eta", &nanoT.Muon_eta);
-	chain->SetBranchAddress("Muon_phi", &nanoT.Muon_phi);
-	chain->SetBranchAddress("Muon_mass", &nanoT.Muon_mass);
-	chain->SetBranchAddress("Muon_tightId", &nanoT.Muon_tightId);
     if(!isData){//Only for MC (these branches are used in JER smearing)
         chain->SetBranchAddress("Jet_genJetIdx", &nanoT.Jet_genJetIdx);
         chain->SetBranchAddress("FatJet_genJetAK8Idx", &nanoT.FatJet_genJetAK8Idx);
@@ -387,18 +375,13 @@ double deltaR(float eta1, float phi1, float eta2, float phi2) {
 }
 
 // Simple helper to conditionally print debug information with optional indentation.
-int spaces2 = 2;
-int spaces3 = 3;
-int spaces4 = 4;
-int spaces5 = 5;
-int spaces6 = 6;
+int spaces2 = 2, spaces3 = 3, spaces4 = 4, spaces5 = 5, spaces6 = 6;
 template<typename... Args>
 void printDebug(bool enable, int indent, const Args&... args) {
     if (!enable) return;
     for (int i = 0; i < indent; ++i) std::cout.put(' ');
     (std::cout << ... << args) << '\n';
 }
-
 
 //--------------------------------------------------
 // Nominal JES Correction 
@@ -909,20 +892,10 @@ bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::s
         //apply minimal selection jets
         if (std::abs(nanoT.Jet_eta[i]) > maxEtaInMap) continue;
         if (std::abs(nanoT.Jet_phi[i]) > maxPhiInMap) continue;
-        if (nanoT.Jet_jetId[i] < 6 ) continue;
+        if (nanoT.Jet_jetId[i] < 6 ) continue;//TightLepVeto ID
         if (nanoT.Jet_pt[i] < 15) continue;
         if ((nanoT.Jet_chEmEF[i] + nanoT.Jet_neEmEF[i]) > 0.9) continue;
 
-        // find minimum ΔR to any muon
-        double minDr = std::numeric_limits<double>::infinity();
-        for (UInt_t iMu = 0; iMu < nanoT.nMuon; ++iMu) {
-            double dr = deltaR(nanoT.Jet_eta[i], nanoT.Jet_phi[i], 
-                                                  nanoT.Muon_eta[iMu], nanoT.Muon_phi[iMu]);
-            if (dr < minDr) minDr = dr;
-            if (minDr < 0.2) break; // skip other muons since we found an overlapping muon
-        }
-        if(minDr < 0.2) continue; // skip that jet since it overlaps with a muon
-   
         // Now check if the jet is in the veto region
         auto jvmNumber = jvmRef->evaluate({jvmKeyName, nanoT.Jet_eta[i], nanoT.Jet_phi[i]});
         // the jvmNumber will be either zero (0.0) or non-zero (100.0).
