@@ -3,6 +3,7 @@ import argparse, json, os, sys
 import numpy as np
 import uproot
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 EPS = 1e-12
 
@@ -81,7 +82,7 @@ def total_rel_band(file_handle, year, hist_name, set_dir, nuisances, nom_y):
 
     return np.sqrt(sumsq)
 
-def plot_one_year(file_handle, cfg_year, year, era, hist_name, outdir, show_sets):
+def plot_one_year(file_handle, cfg_year, year, era, hist_name, pdf, show_sets):
     # --- Nominal MC ---
     mc_nom_path = f"{year}/MC/Nominal/Nominal/{hist_name}"
     mc_nom_y, e = read_hist(file_handle, mc_nom_path)
@@ -150,20 +151,15 @@ def plot_one_year(file_handle, cfg_year, year, era, hist_name, outdir, show_sets
     plt.legend(loc="best", fontsize=9, frameon=True)
     plt.tight_layout()
 
-    os.makedirs(outdir, exist_ok=True)
-    base = f"{hist_name}_{year}_{era}".replace("/", "_")
-    out_png = os.path.join(outdir, base + ".png")
-    out_pdf = os.path.join(outdir, base + ".pdf")
-    plt.savefig(out_png, dpi=150)
-    plt.savefig(out_pdf)
+    # Store the figure as one page in the multipage PDF
+    pdf.savefig()
     plt.close()
-    print(f"Saved: {out_png}")
+    print(f"Added page for {hist_name} {year} {era}")
 
 def main():
     ap = argparse.ArgumentParser(description="Overlay Data vs MC with JES/JER bands (shape-only).")
     ap.add_argument("--config", required=True, help="Path to JSON config (your JERC map).")
     ap.add_argument("--root",   required=True, help="Path to output.root produced by your job.")
-    ap.add_argument("--era",    required=True, help="Data era name, e.g. Era2016PreBCD.")
     ap.add_argument("--hist",   default="hJetPt_AK4", choices=["hJetPt_AK4","hJetPt_AK8","hMET"],
                     help="Histogram name to plot (must exist in the ROOT file).")
     ap.add_argument("--sets",   nargs="+",
@@ -172,7 +168,6 @@ def main():
                     help="Which sets to overlay (any subset of the defaults).")
     ap.add_argument("--years",  nargs="*", default=None,
                     help="Limit to these years; default = all years in config.")
-    ap.add_argument("--outdir", default="plots_jerc_bands", help="Where to write figures.")
     args = ap.parse_args()
 
     with open(args.config) as f:
@@ -181,32 +176,40 @@ def main():
     years = args.years if args.years else list(cfg.keys())
     missing = []
 
-    with uproot.open(args.root) as rf:
+    # Output PDF in current directory
+    out_pdf = f"{os.path.splitext(os.path.basename(args.root))[0]}_{args.hist}.pdf"
+
+    with uproot.open(args.root) as rf, PdfPages(out_pdf) as pdf:
         for year in years:
             if year not in cfg:
                 print(f"Config has no year '{year}', skipping.")
                 continue
 
-            # If the chosen era is not listed in config['data'], still try if the tree exists.
             cfg_year = cfg[year]
-            era_keys = set(cfg_year.get("data", {}).keys())
-            if len(era_keys) and (args.era not in era_keys):
-                print(f"[{year}] Era '{args.era}' not in config[data]; attempting anyway if present in ROOT.")
+            eras = list(cfg_year.get("data", {}).keys())
+            if not eras:
+                print(f"[{year}] No data eras found in config; skipping year.")
+                continue
 
-            # Quick existence check in ROOT:
-            mc_nom_path = f"{year}/MC/Nominal/Nominal/{args.hist}"
-            data_nom_path = f"{year}/Data/{args.era}/Nominal/Nominal/{args.hist}"
-            if mc_nom_path not in rf:
-                missing.append(mc_nom_path);  continue
-            if data_nom_path not in rf:
-                missing.append(data_nom_path); continue
+            for era in eras:
+                mc_nom_path = f"{year}/MC/Nominal/Nominal/{args.hist}"
+                data_nom_path = f"{year}/Data/{era}/Nominal/Nominal/{args.hist}"
 
-            plot_one_year(rf, cfg_year, year, args.era, args.hist, args.outdir, args.sets)
+                if mc_nom_path not in rf:
+                    missing.append(mc_nom_path)
+                    continue
+                if data_nom_path not in rf:
+                    missing.append(data_nom_path)
+                    continue
+
+                plot_one_year(rf, cfg_year, year, era, args.hist, pdf, args.sets)
 
     if missing:
         print("\nMissing objects/paths:")
         for m in missing:
             print("  -", m)
+
+    print(f"Saved multipage PDF: {out_pdf}")
 
 if __name__ == "__main__":
     main()
