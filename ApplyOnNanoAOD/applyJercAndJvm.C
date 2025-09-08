@@ -1329,8 +1329,8 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
  * orchestrates running over MC and data samples.
  */
 void applyJercAndJvm() {
-    const std::string fInputData = "NanoAOD_Data_New.root";
-    const std::string fInputMc   = "NanoAOD_MC_New.root";
+    const std::string fInputData = "NanoAOD_Data.root";
+    const std::string fInputMc   = "NanoAOD_MC.root";
 
     // Prepare output file
     std::string outName = "output.root";
