@@ -789,7 +789,6 @@ void applySystShiftJES(NanoTree& nanoT,
 
 // Propagate the effect of jet corrections to MET using the stored raw jet pT
 // for a single jet collection.
-template <typename Specs>
 TLorentzVector getCorrectedMet(NanoTree& nanoT,
                        std::string year,
                        CorrectionRefs& refs,
@@ -804,18 +803,15 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
     }
     for (size_t i = 0; i < idxs.size(); ++i) {
         const UInt_t idx = idxs[i];
-        const double phi = Specs::getPhi(nanoT, idx);
-        const double eta = Specs::getEta(nanoT, idx);
-        const double area= Specs::getArea(nanoT, idx);
+        const double phi = nanoT.Jet_phi[idx];
+        const double eta = nanoT.Jet_eta[idx];
+        const double area= nanoT.Jet_area[idx];
 
         //Recompute corrections on muon-subracted raw jet pT
-        const double pt_raw_minusMuon = rawPts[idx]* (1-Specs::getMuonSubtrFactor(nanoT,idx));
+        const double pt_raw_minusMuon = rawPts[idx]* (1-nanoT.Jet_muonSubtrFactor[idx]);
         double pt_corr   = pt_raw_minusMuon;
         // L1FastJet (aka Pileup correction)
-        double c1 = refs.corrRefJesL1FastJet->evaluate({ Specs::getArea(nanoT,idx),
-                                            Specs::getEta(nanoT,idx),
-                                            pt_corr,
-                                            nanoT.Rho });
+        double c1 = refs.corrRefJesL1FastJet->evaluate({area, eta, pt_corr, nanoT.Rho});
         pt_corr   *= c1;  
         // catch L1Rc pT right after L1Rc step 
         double pt_corr_l1rc = pt_corr;
@@ -823,12 +819,9 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
         // L2Relative (aka MCTruth correction)
         double c2 = 1.0;
         if(year=="2023Post" || year=="2024"){
-            c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
-                                            Specs::getPhi(nanoT,idx),
-                                            pt_corr });
+            c2 = refs.corrRefJesL2Relative->evaluate({ eta, phi, pt_corr });
         }else{
-            c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
-                                            pt_corr });
+            c2 = refs.corrRefJesL2Relative->evaluate({ eta, pt_corr });
         }
         pt_corr   *= c2;  
 
@@ -849,19 +842,16 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
             if(year=="2023Pre") runNumber = 367080.0;
             if(year=="2023Post") runNumber = 369803.0;
             if(year=="2024") runNumber = 379412.0;
-            cR = refs.corrRefJesL2ResL3Res->evaluate({runNumber,
-                                                      Specs::getEta(nanoT,idx),
-                                                      pt_corr });
+            cR = refs.corrRefJesL2ResL3Res->evaluate({runNumber, eta, pt_corr });
           }else{
-            cR = refs.corrRefJesL2ResL3Res->evaluate({ Specs::getEta(nanoT,idx),
-                                                      pt_corr });
+            cR = refs.corrRefJesL2ResL3Res->evaluate({ eta, pt_corr });
           }
           pt_corr   *= cR;  
         }
         // selection for propagation
         const bool passSel = (pt_corr > 15.0
                              && std::abs(eta) < 5.2
-                             && (Specs::getChmEf(nanoT,idx) + Specs::getNeEmEF(nanoT,idx)) < 0.9
+                             && (nanoT.Jet_chEmEF[idx] + nanoT.Jet_neEmEF[idx]) < 0.9
                              );
         if (!passSel) continue;
         const double dpt = (pt_corr - pt_corr_l1rc);// we put scaled pT due to L2Rel, Residual, JER
@@ -1102,9 +1092,13 @@ static void processEvents(const std::string& inputFile,
         }
 
         // store raw jet pT for MET propagation
-        std::vector<double> rawPtAK4;
-        rawPtAK4.reserve(indicesAK4.size());
-        for (auto idx : indicesAK4) rawPtAK4.push_back((1- nanoT.Jet_rawFactor[idx])*nanoT.Jet_pt[idx]);
+        std::vector<double> rawPtsAK4ForMet;
+        std::vector<UInt_t> indicesAK4ForMet;
+        rawPtsAK4ForMet.reserve(indicesAK4.size());
+        for (int i; i< nanoT.nJet; i++){
+            rawPtsAK4ForMet.push_back((1- nanoT.Jet_rawFactor[i])*nanoT.Jet_pt[i]);
+            indicesAK4ForMet.push_back(i);
+        }
 
         if((!indicesAK4.empty() || !indicesAK8.empty()) && printCount==0){ printCount++; print = true; }
 
@@ -1124,7 +1118,12 @@ static void processEvents(const std::string& inputFile,
                 printDebug(print, spaces3, "AK8 (JES nominal)");
                 applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, print);
             }
-
+            // propagate jet corrections to MET once all jets are corrected
+            if (propagateOnMet) {//Propagated ONLY through ALL AK4
+                TLorentzVector p4CorrectedMET = getCorrectedMet(nanoT, year, refsAK4, isData, indicesAK4ForMet, rawPtsAK4ForMet);
+                printDebug(print, spaces3, "MET after JERC = ", p4CorrectedMET.Pt());
+                H.hMET->Fill(p4CorrectedMET.Pt());
+            }
         } else {
             // For systematic shifts we still need to apply the nominal
             // corrections but skip the verbose printing to avoid repeating
@@ -1192,12 +1191,6 @@ static void processEvents(const std::string& inputFile,
         for (auto idx : indicesAK4) H.hJetPt_AK4->Fill(nanoT.Jet_pt[idx]);
         for (auto idx : indicesAK8) H.hJetPt_AK8->Fill(nanoT.FatJet_pt[idx]);
 
-        // propagate jet corrections to MET once all jets are corrected
-        if (propagateOnMet) {//Propagated ONLY through ALL AK4
-            TLorentzVector p4CorrectedMET = getCorrectedMet<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, rawPtAK4);
-            printDebug(print, spaces3, "MET after JERC = ", p4CorrectedMET.Pt());
-            H.hMET->Fill(p4CorrectedMET.Pt());
-        }
         print = false;
 
 
