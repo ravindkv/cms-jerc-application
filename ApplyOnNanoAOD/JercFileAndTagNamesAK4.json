@@ -149,6 +149,19 @@
       "ForUncertaintyJESTotal": [
         ["Summer19UL16_V7_MC_Total_AK4PFchs", "CMS_scale_j_Total"]
       ]
+    },
+    "ForUncertaintyJER": {
+      "ForUncertaintyJERFull": {
+        "CMS_res_j_eta0to1p93_pt0toInf_2016":   [ 0.0,  1.93, 0,  10000 ],
+        "CMS_res_j_eta1p93to2p5_pt0toInf_2016": [ 1.93, 2.5,  0,  10000 ],
+        "CMS_res_j_eta2p5to3p0_pt0to50_2016":   [ 2.5,  3.0,  0,  50    ],
+        "CMS_res_j_eta2p5to3p0_pt50toInf_2016": [ 2.5,  3.0,  50, 10000 ],
+        "CMS_res_j_eta3to5_pt0to50_2016":       [ 3.0,  5.0,  0,  50    ],
+        "CMS_res_j_eta3to5_pt50toInf_2016":     [ 3.0,  5.0,  50, 10000 ]
+      },
+      "ForUncertaintyJERTotal": {
+        "CMS_res_j_2016": [0.0, 6.0, 0, 10000]
+      }
     }
   },
   "2017": {
@@ -717,7 +730,7 @@
       "ForUncertaintyJESFull": [
         ["Summer24Prompt24_V1_MC_AbsoluteMPFBias_AK4PFPuppi", "CMS_scale_j_AbsoluteMPFBias"],
         ["Summer24Prompt24_V1_MC_AbsoluteScale_AK4PFPuppi",   "CMS_scale_j_AbsoluteScale"],
-        ["Summer24Prompt24_V1_MC_AbsoluteStat_AK4PFPuppi",    "CMS_scale_j_AbsoluteStat_2023BPix"],
+        ["Summer24Prompt24_V1_MC_AbsoluteStat_AK4PFPuppi",    "CMS_scale_j_AbsoluteStat_2024"],
         ["Summer24Prompt24_V1_MC_FlavorQCD_AK4PFPuppi",       "CMS_scale_j_FlavorQCD"],
         ["Summer24Prompt24_V1_MC_Fragmentation_AK4PFPuppi",   "CMS_scale_j_Fragmentation"],
         ["Summer24Prompt24_V1_MC_PileUpDataMC_AK4PFPuppi",    "CMS_scale_j_PileUpDataMC"],
@@ -727,21 +740,21 @@
         ["Summer24Prompt24_V1_MC_PileUpPtHF_AK4PFPuppi",      "CMS_scale_j_PileUpPtHF"],
         ["Summer24Prompt24_V1_MC_PileUpPtRef_AK4PFPuppi",     "CMS_scale_j_PileUpPtRef"],
         ["Summer24Prompt24_V1_MC_RelativeFSR_AK4PFPuppi",     "CMS_scale_j_RelativeFSR"],
-        ["Summer24Prompt24_V1_MC_RelativeJEREC1_AK4PFPuppi",  "CMS_scale_j_RelativeJEREC1_2023BPix"],
-        ["Summer24Prompt24_V1_MC_RelativeJEREC2_AK4PFPuppi",  "CMS_scale_j_RelativeJEREC2_2023BPix"],
+        ["Summer24Prompt24_V1_MC_RelativeJEREC1_AK4PFPuppi",  "CMS_scale_j_RelativeJEREC1_2024"],
+        ["Summer24Prompt24_V1_MC_RelativeJEREC2_AK4PFPuppi",  "CMS_scale_j_RelativeJEREC2_2024"],
         ["Summer24Prompt24_V1_MC_RelativeJERHF_AK4PFPuppi",   "CMS_scale_j_RelativeJERHF"],
         ["Summer24Prompt24_V1_MC_RelativePtBB_AK4PFPuppi",    "CMS_scale_j_RelativePtBB"],
-        ["Summer24Prompt24_V1_MC_RelativePtEC1_AK4PFPuppi",   "CMS_scale_j_RelativePtEC1_2023BPix"],
-        ["Summer24Prompt24_V1_MC_RelativePtEC2_AK4PFPuppi",   "CMS_scale_j_RelativePtEC2_2023BPix"],
+        ["Summer24Prompt24_V1_MC_RelativePtEC1_AK4PFPuppi",   "CMS_scale_j_RelativePtEC1_2024"],
+        ["Summer24Prompt24_V1_MC_RelativePtEC2_AK4PFPuppi",   "CMS_scale_j_RelativePtEC2_2024"],
         ["Summer24Prompt24_V1_MC_RelativePtHF_AK4PFPuppi",    "CMS_scale_j_RelativePtHF"],
         ["Summer24Prompt24_V1_MC_RelativeBal_AK4PFPuppi",     "CMS_scale_j_RelativeBal"],
-        ["Summer24Prompt24_V1_MC_RelativeSample_AK4PFPuppi",  "CMS_scale_j_RelativeSample_2023BPix"],
-        ["Summer24Prompt24_V1_MC_RelativeStatEC_AK4PFPuppi",  "CMS_scale_j_RelativeStatEC_2023BPix"],
-        ["Summer24Prompt24_V1_MC_RelativeStatFSR_AK4PFPuppi", "CMS_scale_j_RelativeStatFSR_2023BPix"],
-        ["Summer24Prompt24_V1_MC_RelativeStatHF_AK4PFPuppi",  "CMS_scale_j_RelativeStatHF_2023BPix"],
+        ["Summer24Prompt24_V1_MC_RelativeSample_AK4PFPuppi",  "CMS_scale_j_RelativeSample_2024"],
+        ["Summer24Prompt24_V1_MC_RelativeStatEC_AK4PFPuppi",  "CMS_scale_j_RelativeStatEC_2024"],
+        ["Summer24Prompt24_V1_MC_RelativeStatFSR_AK4PFPuppi", "CMS_scale_j_RelativeStatFSR_2024"],
+        ["Summer24Prompt24_V1_MC_RelativeStatHF_AK4PFPuppi",  "CMS_scale_j_RelativeStatHF_2024"],
         ["Summer24Prompt24_V1_MC_SinglePionECAL_AK4PFPuppi",  "CMS_scale_j_SinglePionECAL"],
         ["Summer24Prompt24_V1_MC_SinglePionHCAL_AK4PFPuppi",  "CMS_scale_j_SinglePionHCAL"],
-        ["Summer24Prompt24_V1_MC_TimePtEta_AK4PFPuppi",       "CMS_scale_j_TimePtEta_2023BPix"]
+        ["Summer24Prompt24_V1_MC_TimePtEta_AK4PFPuppi",       "CMS_scale_j_TimePtEta_2024"]
       ],
       "ForUncertaintyJESReduced": [
         ["Summer24Prompt24_V1_MC_Regrouped_FlavorQCD_AK4PFPuppi",     "CMS_scale_j_FlavorQCD"],
@@ -750,11 +763,11 @@
         ["Summer24Prompt24_V1_MC_Regrouped_BBEC1_AK4PFPuppi",         "CMS_scale_j_BBEC1"],
         ["Summer24Prompt24_V1_MC_Regrouped_EC2_AK4PFPuppi",           "CMS_scale_j_EC2"],
         ["Summer24Prompt24_V1_MC_Regrouped_Absolute_AK4PFPuppi",      "CMS_scale_j_Absolute"],
-        ["Summer24Prompt24_V1_MC_Regrouped_BBEC1_2023BPix_AK4PFPuppi",    "CMS_scale_j_BBEC1_2023BPix"],
-        ["Summer24Prompt24_V1_MC_Regrouped_RelativeSample_2023BPix_AK4PFPuppi", "CMS_scale_j_RelativeSample_2023BPix"],
-        ["Summer24Prompt24_V1_MC_Regrouped_EC2_2023BPix_AK4PFPuppi",      "CMS_scale_j_EC2_2023BPix"],
-        ["Summer24Prompt24_V1_MC_Regrouped_HF_2023BPix_AK4PFPuppi",       "CMS_scale_j_HF_2023BPix"],
-        ["Summer24Prompt24_V1_MC_Regrouped_Absolute_2023BPix_AK4PFPuppi", "CMS_scale_j_Absolute_2023BPix"]
+        ["Summer24Prompt24_V1_MC_Regrouped_BBEC1_2024_AK4PFPuppi",    "CMS_scale_j_BBEC1_2024"],
+        ["Summer24Prompt24_V1_MC_Regrouped_RelativeSample_2024_AK4PFPuppi", "CMS_scale_j_RelativeSample_2024"],
+        ["Summer24Prompt24_V1_MC_Regrouped_EC2_2024_AK4PFPuppi",      "CMS_scale_j_EC2_2024"],
+        ["Summer24Prompt24_V1_MC_Regrouped_HF_2024_AK4PFPuppi",       "CMS_scale_j_HF_2024"],
+        ["Summer24Prompt24_V1_MC_Regrouped_Absolute_2024_AK4PFPuppi", "CMS_scale_j_Absolute_2024"]
       ],
       "ForUncertaintyJESTotal": [
         ["Summer24Prompt24_V1_MC_Total_AK4PFPuppi", "CMS_scale_j_Total"]
@@ -762,15 +775,15 @@
     },
     "ForUncertaintyJER": {
       "ForUncertaintyJERFull": {
-        "CMS_res_j_eta0to1p93_pt0toInf_2023BPix":   [ 0.0,  1.93, 0,  10000 ],
-        "CMS_res_j_eta1p93to2p5_pt0toInf_2023BPix": [ 1.93, 2.5,  0,  10000 ],
-        "CMS_res_j_eta2p5to3p0_pt0to50_2023BPix":   [ 2.5,  3.0,  0,  50    ],
-        "CMS_res_j_eta2p5to3p0_pt50toInf_2023BPix": [ 2.5,  3.0,  50, 10000 ],
-        "CMS_res_j_eta3to5_pt0to50_2023BPix":       [ 3.0,  5.0,  0,  50    ],
-        "CMS_res_j_eta3to5_pt50toInf_2023BPix":     [ 3.0,  5.0,  50, 10000 ]
+        "CMS_res_j_eta0to1p93_pt0toInf_2024":   [ 0.0,  1.93, 0,  10000 ],
+        "CMS_res_j_eta1p93to2p5_pt0toInf_2024": [ 1.93, 2.5,  0,  10000 ],
+        "CMS_res_j_eta2p5to3p0_pt0to50_2024":   [ 2.5,  3.0,  0,  50    ],
+        "CMS_res_j_eta2p5to3p0_pt50toInf_2024": [ 2.5,  3.0,  50, 10000 ],
+        "CMS_res_j_eta3to5_pt0to50_2024":       [ 3.0,  5.0,  0,  50    ],
+        "CMS_res_j_eta3to5_pt50toInf_2024":     [ 3.0,  5.0,  50, 10000 ]
       },
       "ForUncertaintyJERTotal": {
-        "CMS_res_j_2023BPix": [0.0, 6.0, 0, 10000]
+        "CMS_res_j_2024": [0.0, 6.0, 0, 10000]
       }
     }
   }

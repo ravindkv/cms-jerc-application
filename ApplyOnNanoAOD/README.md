@@ -12,7 +12,7 @@ To visualize Data/MC comparisons with uncertainty bands across all eras,
 run the plotting helper:
 
 ```
-python plotOutput.py --config JercFileAndTagNamesAK4.json --root output.root --hist hJetPt_AK4
+python plotOutput.py 
 ```
 
 This scans the ROOT file for all years and eras defined in the config and

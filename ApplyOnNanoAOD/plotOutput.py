@@ -6,6 +6,33 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 EPS = 1e-12
+# Consistent colors for uncertainty sets (top bands and bottom ratio lines)
+# Stable colors for each uncertainty set
+UNC_COLORS = {
+    "JES Reduced": "C2",
+    "JES Total":   "C3",
+    "JES Full":    "C4",
+    "JER Total":   "C5",
+    "JER Full":    "C6",
+}
+
+# Helpers: consistent labels + color lookup with safe fallback
+_COLOR_CACHE = {}
+def _norm_unc_label(set_key: str) -> str:
+    lbl = set_key.replace("ForUncertainty", "")
+    lbl = lbl.replace("JES", "JES ").replace("JER", "JER ")
+    return " ".join(lbl.split())  # collapse double spaces just in case
+
+def _color_for(lbl: str) -> str:
+    if lbl in UNC_COLORS:
+        return UNC_COLORS[lbl]
+    # fallback: stable pick from matplotlib cycle (cached)
+    if lbl not in _COLOR_CACHE:
+        cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        _COLOR_CACHE[lbl] = cycle[len(_COLOR_CACHE) % len(cycle)]
+    return _COLOR_CACHE[lbl]
+
+
 
 def to_numpy_norm(hobj):
     """Return (y, edges) for TH1; normalize to unit area (shape)."""
@@ -91,6 +118,9 @@ def plot_one_year(file_handle, cfg_year, year, era, hist_name, pdf, show_sets):
         return
     x = centers(e)
 
+    mc_nom_nano_path = f"{year}/MC/Nominal/Nominal/{hist_name}_Nano"
+    mc_nom_nano_y, e_nano = read_hist(file_handle, mc_nom_nano_path)
+
     # --- Nominal Data for the chosen era ---
     data_nom_path = f"{year}/Data/{era}/Nominal/Nominal/{hist_name}"
     data_y, eD = read_hist(file_handle, data_nom_path)
@@ -99,6 +129,9 @@ def plot_one_year(file_handle, cfg_year, year, era, hist_name, pdf, show_sets):
         return
     if not np.allclose(e, eD):
         print(f"[{year}] WARNING: Data/MC binning differs; proceeding with MC binning.")
+
+    data_nom_nano_path = f"{year}/Data/{era}/Nominal/Nominal/{hist_name}_Nano"
+    data_y_nano, eD_nano = read_hist(file_handle, data_nom_nano_path)
 
     # --- Build total bands for each requested set ---
     set_to_dir = {
@@ -109,7 +142,8 @@ def plot_one_year(file_handle, cfg_year, year, era, hist_name, pdf, show_sets):
         "ForUncertaintyJERFull":    "ForUncertaintyJERFull",
     }
 
-    bands = []  # list of (label, y_low, y_high)
+    # bands: list of (label, y_low, y_high, rel)
+    bands = []
     for set_key in show_sets:
         if "JES" in set_key and "ForUncertaintyJES" not in cfg_year:
             continue
@@ -118,48 +152,92 @@ def plot_one_year(file_handle, cfg_year, year, era, hist_name, pdf, show_sets):
 
         nuisances = per_set_nuisance_names(cfg_year, set_key)
         set_dir   = set_to_dir[set_key]
-
         rel = total_rel_band(file_handle, year, hist_name, set_dir, nuisances, mc_nom_y)
+
+        lbl = _norm_unc_label(set_key)
         y_low  = mc_nom_y * (1.0 - rel)
         y_high = mc_nom_y * (1.0 + rel)
-        bands.append((set_key.replace("ForUncertainty", "").replace("JES", "JES ")
-                      .replace("JER", "JER "), y_low, y_high))
+        bands.append((lbl, y_low, y_high, rel))
 
-    # --- Plot ---
-    plt.figure(figsize=(8, 6))
-    # MC nominal (step)
-    plt.step(e[:-1], mc_nom_y, where="post", linewidth=1.8, label="MC (Nominal)")
+    # --- Figure with two pads (top: spectra, bottom: ratio) ---
+    fig, (ax, rax) = plt.subplots(
+        2, 1, sharex=True, figsize=(8, 7),
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05}
+    )
 
-    # Data (markers). Poisson error (on counts) divided by total counts ~ sqrt(y*I)/I = sqrt(y/I)
-    # But we normalized; for shape-only overlay it's common to show markers without yerr.
-    plt.errorbar(x, data_y, fmt="o", ms=3.5, capsize=0, label=f"Data {era}")
+    nano_color = "C0"
+    nom_color  = "C1"
 
-    # Bands (draw darker later ones on top)
-    # Order: Reduced, JESTotal, JESFull, JERTotal, JERFull (if present)
+    # --- TOP PAD: Data/MC + filled uncertainty envelopes ---
+    if data_y_nano is not None:
+        ax.errorbar(x, data_y_nano, fmt="o", ms=3.5, capsize=0,
+                    label="Data (NanoAOD)", color=nano_color)
+    ax.errorbar(x, data_y, fmt="o", ms=3.5, capsize=0,
+                label="Data (JES Nominal)", color=nom_color)
+
+    if mc_nom_nano_y is not None:
+        ax.step(e_nano[:-1], mc_nom_nano_y, where="post", linewidth=1.8,
+                label="MC (NanoAOD)", color=nano_color)
+    ax.step(e[:-1], mc_nom_y, where="post", linewidth=1.8,
+            label="MC (JES+JER Nominal)", color=nom_color)
+
     order = {name: i for i, name in enumerate(
         ["JES Reduced", "JES Total", "JES Full", "JER Total", "JER Full"]
     )}
     bands.sort(key=lambda t: order.get(t[0], 99))
 
-    for lbl, lo, hi in bands:
-        plt.fill_between(x, lo, hi, step="mid", alpha=0.25, linewidth=0.0, label=lbl)
+    for lbl, lo, hi, rel in bands:
+        color = _color_for(lbl)
+        ax.fill_between(
+            x, lo, hi, step="mid",
+            facecolor=color, edgecolor=color, alpha=0.45, linewidth=0.8,
+            label="MC Unc: " + lbl
+        )
 
-    plt.title(f"{hist_name} — {year} / {era} (shape-normalized)")
-    plt.xlabel("pT [GeV]" if "JetPt" in hist_name else hist_name)
-    plt.ylabel("Normalized entries")
-    plt.ylim(bottom=0)
-    plt.legend(loc="best", fontsize=9, frameon=True)
+
+    ax.set_title(f"{hist_name} — {year} / {era} (shape-normalized)")
+    ax.set_ylabel("Normalized entries")
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="best", fontsize=9, frameon=True)
+
+    # --- BOTTOM PAD: ratio of envelopes to nominal (1 ± rel) ---
+    # BOTTOM PAD header (keep the rest the same)
+    rax.axhline(0.0, linestyle="--", linewidth=1.0, color="k", label="0.0")
+
+    # choose a sensible y-range from max rel across sets
+    max_rel = 0.0
+    for _, _, _, rel in bands:
+        if rel is not None and np.size(rel):
+            max_rel = max(max_rel, float(np.nanmax(rel)))
+    # pad a bit; cap extremes to keep view reasonable
+    pad = 0.02
+    max_rel = min(max_rel, 0.5)  # do not explode axis if something goes wild
+    #rax.set_ylim(1.0 - (max_rel + pad), 1.0 + (max_rel + pad))
+    rax.set_ylim(-15, +15)
+
+    # draw 1±rel lines for each set (only one legend entry per set — on top pad)
+    for lbl, _, _, rel in bands:
+        color = _color_for(lbl)
+        hi =100*(0.0 + rel)
+        lo =100*(0.0 - rel)
+        # label only the solid (1+rel) line so we get one legend entry per set
+        rax.step(e[:-1], hi, where="post", linewidth=1.3, color=color, label=f"{lbl}")
+        rax.step(e[:-1], lo, where="post", linewidth=1.3, color=color, linestyle="--", label="_nolegend_")
+    rax.legend(loc="upper right", fontsize=8, frameon=True, ncol=2)
+    rax.set_xlabel("pT [GeV]" if "JetPt" in hist_name else hist_name)
+    rax.set_ylabel("Uncertainty (%)")
+    rax.grid(True, axis="y", alpha=0.3)
+
     plt.tight_layout()
-
-    # Store the figure as one page in the multipage PDF
-    pdf.savefig()
-    plt.close()
+    pdf.savefig(fig)
+    plt.close(fig)
     print(f"Added page for {hist_name} {year} {era}")
+
 
 def main():
     ap = argparse.ArgumentParser(description="Overlay Data vs MC with JES/JER bands (shape-only).")
-    ap.add_argument("--config", required=True, help="Path to JSON config (your JERC map).")
-    ap.add_argument("--root",   required=True, help="Path to output.root produced by your job.")
+    ap.add_argument("--config", default="JercFileAndTagNamesAK4.json", help="Path to JSON config (your JERC map).")
+    ap.add_argument("--root",   default="output.root", help="Path to output.root produced by your job.")
     ap.add_argument("--hist",   default="hJetPt_AK4", choices=["hJetPt_AK4","hJetPt_AK8","hMET"],
                     help="Histogram name to plot (must exist in the ROOT file).")
     ap.add_argument("--sets",   nargs="+",
