@@ -37,6 +37,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <unordered_set>
 #include <optional>
 #include <cmath>
 #include <TFile.h>
@@ -374,6 +375,37 @@ double deltaR(float eta1, float phi1, float eta2, float phi2) {
     return std::abs(std::sqrt(dEta*dEta + dPhi*dPhi));
 }
 
+// ------------------------------------------------------------------
+// Helper utilities to centralise common year-based logic
+// ------------------------------------------------------------------
+
+/// Years in which the L2Relative correction depends on \f$\phi\f$.
+inline bool hasPhiDependentL2(const std::string& year) {
+    return year == "2023Post" || year == "2024";
+}
+
+/// Years requiring a run-based residual correction (data only).
+inline bool requiresRunBasedResidual(const std::string& year) {
+    return year == "2023Pre" || year == "2023Post" || year == "2024";
+}
+
+/// Years for which the raw MET comes from the PuppiMET branches and
+/// the JER scale factors depend on \f$\eta, p_T, \rho\f$.
+inline bool usesPuppiMet(const std::string& year) {
+    static const std::unordered_set<std::string> years =
+        {"2022Pre", "2022Post", "2023Pre", "2023Post", "2024"};
+    return years.count(year);
+}
+
+/// Select a representative run number for residual corrections when
+/// working with very small example input files.
+inline double representativeRunNumber(const NanoTree& nanoT, const std::string& year) {
+    if (year == "2023Pre")  return 367080.0;
+    if (year == "2023Post") return 369803.0;
+    if (year == "2024")     return 379412.0;
+    return static_cast<double>(nanoT.run);
+}
+
 // Simple helper to conditionally print debug information with optional indentation.
 int spaces2 = 2, spaces3 = 3, spaces4 = 4, spaces5 = 5, spaces6 = 6;
 template<typename... Args>
@@ -431,7 +463,7 @@ void applyJESNominal(NanoTree& nanoT,
 
         // L2Relative (aka MCTruth correction)
         double c2 = 1.0;
-        if(year=="2023Post" || year=="2024"){
+        if(hasPhiDependentL2(year)){
             c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
                                             Specs::getPhi(nanoT,idx),
                                             Specs::getPt(nanoT,idx) });
@@ -446,19 +478,8 @@ void applyJESNominal(NanoTree& nanoT,
         //(to cover residual differences between Data/MC)
         if(isData){
           double cR = 1.0;
-          if(year=="2023Pre" || year=="2023Post" || year=="2024"){
-            double runNumber = static_cast<double>(nanoT.run);
-            /**
-             * Since we currently have a tiny NanoAod_Data.root file where we do
-             * not have run numbers from multuple years. So temporarily we choose
-             * the lower bound for each year to excecute the code
-             */  
-            // 2023Pre: run edges : [367080.0, 367765.0, 369802.0] 
-            // 2023Post: run edges : [369803.0, 372415.0]
-            // 2024: run edges[379412.0, 380253.0, 380948.0, ..., 386409.0, 387121.0]
-            if(year=="2023Pre") runNumber = 367080.0;
-            if(year=="2023Post") runNumber = 369803.0;
-            if(year=="2024") runNumber = 379412.0;
+          if(requiresRunBasedResidual(year)){
+            const double runNumber = representativeRunNumber(nanoT, year);
             cR = refs.corrRefJesL2ResL3Res->evaluate({runNumber,
                                                       Specs::getEta(nanoT,idx),
                                                       Specs::getPt(nanoT,idx) });
@@ -797,7 +818,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
                        const std::string& jesSystVar = "", bool print=true) {
 
     double met_raw_pt, met_raw_phi;
-    if(year=="2022Pre" ||year=="2022Post" ||year=="2023Pre" || year=="2023Post" || year=="2024"){
+    if(usesPuppiMet(year)){
         met_raw_pt  = nanoT.RawPuppiMET_pt;
         met_raw_phi = nanoT.RawPuppiMET_phi;
     }else{
@@ -825,7 +846,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
 
         // L2Relative (aka MCTruth correction)
         double c2 = 1.0;
-        if(year=="2023Post" || year=="2024"){
+        if(hasPhiDependentL2(year)){
             c2 = refs.corrRefJesL2Relative->evaluate({ eta, phi, pt_corr });
         }else{
             c2 = refs.corrRefJesL2Relative->evaluate({ eta, pt_corr });
@@ -836,12 +857,8 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
         //(to cover residual differences between Data/MC)
         if(isData){
           double cR = 1.0;
-          if(year=="2023Pre" || year=="2023Post" || year=="2024"){
-            double runNumber = static_cast<double>(nanoT.run);
-            // See comment in applyJESNominal for small example files
-            if(year=="2023Pre")  runNumber = 367080.0;
-            if(year=="2023Post") runNumber = 369803.0;
-            if(year=="2024")     runNumber = 379412.0;
+          if(requiresRunBasedResidual(year)){
+            const double runNumber = representativeRunNumber(nanoT, year);
             cR = refs.corrRefJesL2ResL3Res->evaluate({runNumber, eta, pt_corr });
           }else{
             cR = refs.corrRefJesL2ResL3Res->evaluate({ eta, pt_corr });
@@ -870,7 +887,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
 
             const double reso = refs.corrRefJerReso->evaluate({ eta, pt_corr, nanoT.Rho });
             double sf = 1.0;
-            if(year=="2022Pre" || year=="2022Post" || year=="2023Pre" || year=="2023Post" || year=="2024"){
+            if(usesPuppiMet(year)){
                 sf = refs.corrRefJerSf->evaluate({ eta, pt_corr, useVar });
             }else{
                 sf = refs.corrRefJerSf->evaluate({ eta, useVar });
