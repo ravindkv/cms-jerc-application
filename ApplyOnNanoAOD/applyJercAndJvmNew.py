@@ -358,31 +358,34 @@ def build_syst_tag_detail_JES(sAK4: Dict[str, List[Tuple[str, str]]],
 # ---------------------------------------------------------------------------
 
 def collect_ak8_indices(pt: np.ndarray, eta: np.ndarray, hNano) -> List[int]:
-    """Select AK8 jet indices using numpy masking instead of Python loops."""
-    mask = (pt >= 100) & (np.abs(eta) <= 5.2)
-    sel = np.nonzero(mask)[0]
-    if hNano and len(sel):
-        hNano.FillN(len(sel), pt[sel], np.ones(len(sel), dtype=np.float64))
-    return sel.tolist()
+    idxs: List[int] = []
+    for j in range(len(pt)):
+        if pt[j] < 100 or abs(eta[j]) > 5.2:
+            continue
+        idxs.append(j)
+        if hNano:
+            hNano.Fill(float(pt[j]))
+    return idxs
 
 
 def collect_non_overlapping_ak4_indices(pt: np.ndarray, eta: np.ndarray, phi: np.ndarray,
                                         ak8_eta: np.ndarray, ak8_phi: np.ndarray,
                                         hNano) -> List[int]:
-    """AK4 jet selection with broadcast ΔR overlap removal."""
-    base_mask = (pt >= 15) & (np.abs(eta) <= 5.2)
-    if len(ak8_eta):
-        dEta = eta[:, None] - ak8_eta[None, :]
-        dPhi = phi_mpi_pi(phi[:, None] - ak8_phi[None, :])
-        dr2 = dEta**2 + dPhi**2
-        overlap = np.any(dr2 < 0.36, axis=1)
-    else:
-        overlap = np.zeros_like(pt, dtype=bool)
-    mask = base_mask & ~overlap
-    sel = np.nonzero(mask)[0]
-    if hNano and len(sel):
-        hNano.FillN(len(sel), pt[sel], np.ones(len(sel), dtype=np.float64))
-    return sel.tolist()
+    idxs: List[int] = []
+    for j in range(len(pt)):
+        if pt[j] < 15 or abs(eta[j]) > 5.2:
+            continue
+        overlaps = False
+        for k in range(len(ak8_eta)):
+            if deltaR(eta[j], phi[j], ak8_eta[k], ak8_phi[k]) < 0.6:
+                overlaps = True
+                break
+        if overlaps:
+            continue
+        idxs.append(j)
+        if hNano:
+            hNano.Fill(float(pt[j]))
+    return idxs
 
 # ---------------------------------------------------------------------------
 # JES/JER applications (per-jet, event-wise)
@@ -410,38 +413,54 @@ def apply_JES_nominal(year: str, is_data: bool, refs: CorrectionRefs,
 # We provide a closure factory so we can access event-level rho without threading it through every call
 
 def make_apply_JES_nominal(year: str, is_data: bool, refs: CorrectionRefs, rho: float, run_for_residual: float):
-    """Return a vectorised JES nominal applier."""
     def _apply(pts: np.ndarray, etas: np.ndarray, phis: np.ndarray, areas: np.ndarray, rawFactors: np.ndarray, debug=True):
-        # Undo NanoAOD default correction
-        pts *= (1.0 - rawFactors)
-        # L1FastJet
-        c1 = refs.corrRefJesL1FastJet.evaluate(areas, etas, pts, rho)
-        pts *= c1
-        # L2Relative
-        if has_phi_dependent_L2(year):
-            c2 = refs.corrRefJesL2Relative.evaluate(etas, phis, pts)
-        else:
-            c2 = refs.corrRefJesL2Relative.evaluate(etas, pts)
-        pts *= c2
-        # L2L3Residual on data only
-        if is_data:
-            if requires_run_based_residual(year):
-                run_arr = np.full_like(pts, run_for_residual)
-                cR = refs.corrRefJesL2ResL3Res.evaluate(run_arr, etas, pts)
+        for idx in range(len(pts)):
+            if debug:
+                print_debug(debug, spaces4, f"[Jet] index={idx}, eta={etas[idx]}, phi={phis[idx]}, area={areas[idx]}, rawFactor={rawFactors[idx]}")
+                print_debug(debug, spaces6, f"default NanoAod  Pt={pts[idx]}")
+            # undo NanoAOD default correction
+            rawSF = 1.0 - float(rawFactors[idx])
+            pts[idx] *= rawSF
+            if debug:
+                print_debug(debug, spaces6, f"after undoing    Pt={pts[idx]}")
+            # L1FastJet
+            c1 = refs.corrRefJesL1FastJet.evaluate(areas[idx], etas[idx], pts[idx], rho)
+            pts[idx] *= c1
+            if debug:
+                print_debug(debug, spaces6, f"after L1FastJet  Pt={pts[idx]}")
+            # L2Relative
+            if has_phi_dependent_L2(year):
+                c2 = refs.corrRefJesL2Relative.evaluate(etas[idx], phis[idx], pts[idx])
             else:
-                cR = refs.corrRefJesL2ResL3Res.evaluate(etas, pts)
-            pts *= cR
+                c2 = refs.corrRefJesL2Relative.evaluate(etas[idx], pts[idx])
+            pts[idx] *= c2
+            if debug:
+                print_debug(debug, spaces6, f"after L2Relative Pt={pts[idx]}")
+            # L2L3Residual on data only
+            if is_data:
+                if requires_run_based_residual(year):
+                    cR = refs.corrRefJesL2ResL3Res.evaluate(run_for_residual, etas[idx], pts[idx])
+                else:
+                    cR = refs.corrRefJesL2ResL3Res.evaluate(etas[idx], pts[idx])
+                pts[idx] *= cR
+                if debug:
+                    print_debug(debug, spaces6, f"after L2L3Residual Pt={pts[idx]}")
     return _apply
 
 
 def apply_JES_syst(refs: CorrectionRefs, syst_name: str, var: str,
                     pts: np.ndarray, etas: np.ndarray, phis: np.ndarray,
                     debug=False):
-    """Apply JES systematic variations using array operations."""
     systCorr = refs.cs[syst_name]
-    scale = systCorr.evaluate(etas, pts)
-    shift = 1.0 + scale if var == "Up" else 1.0 - scale
-    pts *= shift
+    for idx in range(len(pts)):
+        if debug:
+            print_debug(debug, spaces4, f"[Jet] index={idx}")
+            print_debug(debug, spaces5, f"Nominal corrected    Pt={pts[idx]}")
+        scale = systCorr.evaluate(etas[idx], pts[idx])
+        shift = (1.0 + scale) if var == "Up" else (1.0 - scale)
+        pts[idx] *= shift
+        if debug:
+            print_debug(debug, spaces5, f"Syst corrected       Pt={pts[idx]}")
 
 
 # ---------------------------------------------------------------------------
@@ -475,80 +494,74 @@ def corrected_met(year: str, is_data: bool, refs: CorrectionRefs,
 
     rng = np.random.default_rng(seed_triplet[0] + seed_triplet[1] + seed_triplet[2])
 
-    idxs = np.array(indicesAK4ForMet, dtype=int)
-    idxs = idxs[idxs < len(rawPtsAK4ForMet)]
-    phi = Jet_phi[idxs].astype(float)
-    eta = Jet_eta[idxs].astype(float)
-    area = Jet_area[idxs].astype(float)
-    muSub = Jet_muonSubtrFactor[idxs].astype(float)
-    pt_corr = rawPtsAK4ForMet[idxs].astype(float) * (1.0 - muSub)
+    for i in range(len(indicesAK4ForMet)):
+        idx = indicesAK4ForMet[i]
+        if idx >= len(rawPtsAK4ForMet):
+            break
+        phi = float(Jet_phi[idx])
+        eta = float(Jet_eta[idx])
+        area = float(Jet_area[idx])
 
-    c1 = refs.corrRefJesL1FastJet.evaluate(area, eta, pt_corr, rho)
-    pt_corr *= c1
-    pt_corr_l1rc = pt_corr.copy()
-    if has_phi_dependent_L2(year):
-        c2 = refs.corrRefJesL2Relative.evaluate(eta, phi, pt_corr)
-    else:
-        c2 = refs.corrRefJesL2Relative.evaluate(eta, pt_corr)
-    pt_corr *= c2
-
-    if is_data:
-        if requires_run_based_residual(year):
-            run_for_residual = representative_run_number(year)
-            run_arr = np.full_like(pt_corr, run_for_residual)
-            cR = refs.corrRefJesL2ResL3Res.evaluate(run_arr, eta, pt_corr)
+        # recompute corrections on muon-subtracted raw jet pt
+        pt_corr = float(rawPtsAK4ForMet[idx]) * (1.0 - float(Jet_muonSubtrFactor[idx]))
+        # L1FastJet
+        c1 = refs.corrRefJesL1FastJet.evaluate(area, eta, pt_corr, rho)
+        pt_corr *= c1
+        pt_corr_l1rc = pt_corr  # capture L1Rc stage
+        # L2Relative
+        if has_phi_dependent_L2(year):
+            c2 = refs.corrRefJesL2Relative.evaluate(eta, phi, pt_corr)
         else:
-            cR = refs.corrRefJesL2ResL3Res.evaluate(eta, pt_corr)
-        pt_corr *= cR
-
-    if (not is_data) and jesSystName:
-        systCorr = refs.cs[jesSystName]
-        scale = systCorr.evaluate(eta, pt_corr)
-        shift = 1.0 + scale if jesSystVar == "Up" else 1.0 - scale
-        pt_corr *= shift
-
-    if not is_data:
-        useVar = np.array([jerVar] * len(pt_corr), dtype=object)
-        if jerRegion is not None:
-            mask_region = ~((np.abs(eta) >= jerRegion.etaMin) & (np.abs(eta) < jerRegion.etaMax) &
-                            (pt_corr >= jerRegion.ptMin) & (pt_corr < jerRegion.ptMax))
-            useVar[mask_region] = "nom"
-        reso = refs.corrRefJerReso.evaluate(eta, pt_corr, rho)
-        sf = refs.corrRefJerSf.evaluate(eta, pt_corr, useVar)
-        genIdx = Jet_genJetIdx[idxs] if Jet_genJetIdx is not None else np.full(len(pt_corr), -1)
-        matched = np.zeros(len(pt_corr), dtype=bool)
-        corr = np.ones(len(pt_corr))
-        if GenJet_pt is not None:
-            valid = (genIdx > -1) & (genIdx < len(GenJet_pt))
-            if np.any(valid):
-                gen_pt = GenJet_pt[genIdx[valid]]
-                gen_eta = GenJet_eta[genIdx[valid]]
-                gen_phi = GenJet_phi[genIdx[valid]]
-                dEta = phi[valid] - eta[valid]
-                dPhi = phi_mpi_pi(gen_phi - gen_eta)
-                dR = np.sqrt(dEta**2 + dPhi**2)
-                matched_valid = (dR < 0.2) & (np.abs(pt_corr[valid] - gen_pt) < 3.0 * reso[valid] * pt_corr[valid])
-                matched[valid] = matched_valid
-                corr[valid & matched_valid] = np.maximum(
-                    0.0,
-                    1.0 + (sf[valid & matched_valid] - 1.0) *
-                    (pt_corr[valid & matched_valid] - gen_pt[matched_valid]) /
-                    pt_corr[valid & matched_valid],
-                )
-        rnd = rng.normal(0.0, reso, size=len(pt_corr))
-        corr[~matched] = np.maximum(0.0, 1.0 + rnd[~matched] * np.sqrt(np.maximum(sf[~matched]**2 - 1.0, 0.0)))
-        pt_corr *= corr
-
-    passSel = (pt_corr > 15.0) & (np.abs(eta) < 5.2) & ((jet_arrays["chEmEF"][idxs] + jet_arrays["neEmEF"][idxs]) < 0.9)
-    if debug:
-        sel_idx = idxs[passSel]
-        for j, l1rc, corr_pt in zip(sel_idx, pt_corr_l1rc[passSel], pt_corr[passSel]):
-            print_debug(debug, spaces4, f"[Jet] index={j}")
-            print_debug(debug, spaces6, f"L1 JEC corrected Pt = {l1rc}")
-            print_debug(debug, spaces6, f"L1L2L3JEC + JER corrected Pt = {corr_pt}")
-    dpt = pt_corr[passSel] - pt_corr_l1rc[passSel]
-    met_px -= np.sum(dpt * np.cos(phi[passSel]))
-    met_py -= np.sum(dpt * np.sin(phi[passSel]))
+            c2 = refs.corrRefJesL2Relative.evaluate(eta, pt_corr)
+        pt_corr *= c2
+        # L2L3Residual (data only)
+        if is_data:
+            if requires_run_based_residual(year):
+                # In C++ they use representativeRunNumber(nanoT, year)
+                run_for_residual = representative_run_number(year)
+                cR = refs.corrRefJesL2ResL3Res.evaluate(run_for_residual, eta, pt_corr)
+            else:
+                cR = refs.corrRefJesL2ResL3Res.evaluate(eta, pt_corr)
+            pt_corr *= cR
+        # JES syst shift (MC only)
+        if (not is_data) and jesSystName:
+            systCorr = refs.cs[jesSystName]
+            scale = systCorr.evaluate(eta, pt_corr)
+            shift = (1.0 + scale) if jesSystVar == "Up" else (1.0 - scale)
+            pt_corr *= shift
+        # JER smearing (MC only)
+        if not is_data:
+            useVar = jerVar
+            if jerRegion is not None:
+                aeta = abs(eta)
+                if not (aeta >= jerRegion.etaMin and aeta < jerRegion.etaMax and pt_corr >= jerRegion.ptMin and pt_corr < jerRegion.ptMax):
+                    useVar = "nom"
+            reso = reso = refs.corrRefJerReso.evaluate(eta, pt_corr, rho) if uses_puppi_met(year) else refs.corrRefJerReso.evaluate(eta, pt_corr, rho)
+            sf   = refs.corrRefJerSf.evaluate(eta, pt_corr, useVar) if uses_puppi_met(year) else refs.corrRefJerSf.evaluate(eta, useVar)
+            # seed already set once above
+            genIdx = int(Jet_genJetIdx[idx]) if Jet_genJetIdx is not None else -1
+            isMatch = False
+            if genIdx > -1 and GenJet_pt is not None and genIdx < len(GenJet_pt):
+                # Intentionally preserve the (eta,phi) swap from C++ for identical behavior
+                dR = deltaR(float(phi), float(GenJet_phi[genIdx]), float(eta), float(GenJet_eta[genIdx]))
+                if dR < 0.2 and abs(pt_corr - float(GenJet_pt[genIdx])) < 3.0 * reso * pt_corr:
+                    isMatch = True
+            if isMatch:
+                corr = max(0.0, 1.0 + (sf - 1.0) * (pt_corr - float(GenJet_pt[genIdx])) / pt_corr)
+            else:
+                corr = max(0.0, 1.0 + rng.normal(0.0, reso) * math.sqrt(max(sf * sf - 1.0, 0.0)))
+            pt_corr *= corr
+        # selection for propagation
+        passSel = (pt_corr > 15.0 and abs(eta) < 5.2 and (float(jet_arrays["chEmEF"][idx]) + float(jet_arrays["neEmEF"][idx])) < 0.9)
+        if not passSel:
+            continue
+        if debug:
+            print_debug(debug, spaces4, f"[Jet] index={idx}")
+            print_debug(debug, spaces6, f"L1 JEC corrected Pt = {pt_corr_l1rc}")
+            print_debug(debug, spaces6, f"L1L2L3JEC + JER corrected Pt = {pt_corr}")
+        dpt = pt_corr - pt_corr_l1rc
+        met_px -= dpt * math.cos(phi)
+        met_py -= dpt * math.sin(phi)
 
     met_pt = math.hypot(met_px, met_py)
     met_phi = math.atan2(met_py, met_px)
