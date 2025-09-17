@@ -1098,7 +1098,8 @@ std::vector<UInt_t> collectNonOverlappingAK4Jets(const NanoTree& nanoT,
  * \c systTagDetail, an additional JES or JER systematic variation.  Histograms
  * are filled and written to the provided output file.
  */
-static void processEvents(const std::string& inputFile,
+static void processEvents(TChain& chain,
+                              NanoTree& nanoT,
                               TFile& fout,
                               const std::string& year,
                               bool isData,
@@ -1133,12 +1134,6 @@ static void processEvents(const std::string& inputFile,
         jvmKey  = getTagName(y, "jvmKeyName");
         useJvm  = true;
     }
-
-    // --- Chain & branches
-    TChain chain("Events");
-    chain.Add(inputFile.c_str());
-    NanoTree nanoT;
-    setupNanoBranches(&chain, nanoT, isData);
 
     const bool writeNano = systTagDetail.isNominal(); // write once in Nominal pass
     Hists H = makeHists(fout, year, isData, era, systTagDetail.systSetName(),
@@ -1295,7 +1290,8 @@ static void processEvents(const std::string& inputFile,
  * requested JES and JER systematic variations for a given year.  Systematic
  * definitions are retrieved from the JSON configuration files.
  */
-void processEventsWithNominalOrSyst(const std::string& inputFile,
+void processEventsWithNominalOrSyst(TChain& chain,
+                                     NanoTree& nanoT,
                                      TFile& fout,
                                      const std::string& year,
                                      bool isData,
@@ -1318,7 +1314,7 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
 
     // 0) Nominal
     std::cout<<" [Nominal]\n";
-    processEvents(inputFile, fout, year, isData, era, SystTagDetail{});
+    processEvents(chain, nanoT, fout, year, isData, era, SystTagDetail{});
 
     if (!isData) {
         // 1) Correlated JES systematics
@@ -1358,14 +1354,14 @@ void processEventsWithNominalOrSyst(const std::string& inputFile,
         }
         for (const auto& d : jesDetails) {
             std::cout<<"\n [JES Syst]: "<<d.systName()<<'\n';
-            processEvents(inputFile, fout, year, false, era, d);
+            processEvents(chain, nanoT, fout, year, false, era, d);
         }
 
         // 2) JER systematics (Up/Down) with region gating from JSON
         auto jerDetails = buildJerTagDetails(jerSets);
         for (const auto& d : jerDetails) {
             std::cout<<"\n [JER Syst]: "<<d.systSetName()<<"/"<<d.systName()<<'\n';
-            processEvents(inputFile, fout, year, false, era, d);
+            processEvents(chain, nanoT, fout, year, false, era, d);
         }
     }
 }
@@ -1422,14 +1418,22 @@ void applyJercAndJvm() {
         std::cout<<"-----------------" <<'\n';
         std::cout<<"[MC] : "<<year <<'\n';
         std::cout<<"-----------------" <<'\n';
-        processEventsWithNominalOrSyst(fInputMc, fout, year, /*isData=*/false);
+        TChain chain("Events");
+        chain.Add(fInputMc.c_str());
+        NanoTree nanoT;
+        setupNanoBranches(&chain, nanoT, /*isData=*/false);
+        processEventsWithNominalOrSyst(chain, nanoT, fout, year, /*isData=*/false);
     }
 
     for (const auto& [year, era] : dataConfigs) {
         std::cout<<"-----------------"<<'\n';
         std::cout<<"\n[Data] : "<<year <<" : "<<era <<'\n';
         std::cout<<"-----------------" <<'\n';
-        processEventsWithNominalOrSyst(fInputData, fout, year, /*isData=*/true, era);
+        TChain chain("Events");
+        chain.Add(fInputData.c_str());
+        NanoTree nanoT;
+        setupNanoBranches(&chain, nanoT, /*isData=*/true);
+        processEventsWithNominalOrSyst(chain, nanoT, fout, year, /*isData=*/true, era);
     }
 
     fout.Write();
