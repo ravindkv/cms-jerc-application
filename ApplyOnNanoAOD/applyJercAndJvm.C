@@ -1289,13 +1289,15 @@ static void processEvents(TChain& chain,
  * Helper that runs the core event loop for the nominal pass and for all
  * requested JES and JER systematic variations for a given year.  Systematic
  * definitions are retrieved from the JSON configuration files.
+ *
+ * NOTE: This function now creates a *fresh* NanoTree and rebinds branches
+ * for every pass (Nominal / each JES / each JER), so corrections never pile up.
  */
 void processEventsWithNominalOrSyst(TChain& chain,
-                                     NanoTree& nanoT,
-                                     TFile& fout,
-                                     const std::string& year,
-                                     bool isData,
-                                     const std::optional<std::string>& era = std::nullopt)
+                                    TFile& fout,
+                                    const std::string& year,
+                                    bool isData,
+                                    const std::optional<std::string>& era = std::nullopt)
 {
     auto cfgAK4 = loadJsonConfig("JercFileAndTagNamesAK4.json");
     auto cfgAK8 = loadJsonConfig("JercFileAndTagNamesAK8.json");
@@ -1312,9 +1314,16 @@ void processEventsWithNominalOrSyst(TChain& chain,
     // JER sets (read once; we can use AK4 file as the source of binning)
     JerSetMap jerSets = getJerUncertaintySets(cfgAK4, year);
 
+    // Small helper to run one pass with a fresh NanoTree
+    auto run_pass = [&](const SystTagDetail& detail, const char* banner = nullptr) {
+        if (banner) std::cout << banner << '\n';
+        NanoTree nanoT;
+        setupNanoBranches(&chain, nanoT, isData);
+        processEvents(chain, nanoT, fout, year, isData, era, detail);
+    };
+
     // 0) Nominal
-    std::cout<<" [Nominal]\n";
-    processEvents(chain, nanoT, fout, year, isData, era, SystTagDetail{});
+    run_pass(SystTagDetail{}, " [Nominal]");
 
     if (!isData) {
         // 1) Correlated JES systematics
@@ -1322,7 +1331,7 @@ void processEventsWithNominalOrSyst(TChain& chain,
         if (applyOnlyOnAK4) {
             for (const auto& [set, pairs] : sAK4) {
                 for (const auto& p : pairs) {
-                    for (const char* var : {"Up","Down"}) {
+                    for (const char* var : {"Up", "Down"}) {
                         SystTagDetailJES d;
                         d.setName = set;
                         d.var = var;
@@ -1337,7 +1346,7 @@ void processEventsWithNominalOrSyst(TChain& chain,
         } else if (applyOnlyOnAK8) {
             for (const auto& [set, pairs] : sAK8) {
                 for (const auto& p : pairs) {
-                    for (const char* var : {"Up","Down"}) {
+                    for (const char* var : {"Up", "Down"}) {
                         SystTagDetailJES d;
                         d.setName = set;
                         d.var = var;
@@ -1352,19 +1361,21 @@ void processEventsWithNominalOrSyst(TChain& chain,
         } else {
             jesDetails = buildSystTagDetailJES(sAK4, sAK8);
         }
+
         for (const auto& d : jesDetails) {
-            std::cout<<"\n [JES Syst]: "<<d.systName()<<'\n';
-            processEvents(chain, nanoT, fout, year, false, era, d);
+            std::cout << "\n [JES Syst]: " << d.systName() << '\n';
+            run_pass(d);
         }
 
         // 2) JER systematics (Up/Down) with region gating from JSON
         auto jerDetails = buildJerTagDetails(jerSets);
         for (const auto& d : jerDetails) {
-            std::cout<<"\n [JER Syst]: "<<d.systSetName()<<"/"<<d.systName()<<'\n';
-            processEvents(chain, nanoT, fout, year, false, era, d);
+            std::cout << "\n [JER Syst]: " << d.systSetName() << "/" << d.systName() << '\n';
+            run_pass(d);
         }
     }
 }
+
 
 
 /**
@@ -1378,7 +1389,6 @@ void applyJercAndJvm() {
     // Prepare output file
     std::string outName = "output.root";
     TFile fout(outName.c_str(), "RECREATE");
-
 
     std::vector<std::string> mcYears = {
         "2016Pre", 
@@ -1409,31 +1419,27 @@ void applyJercAndJvm() {
        {"2022Post","Era2022E"},
        {"2022Post","Era2022F"},
        {"2022Post","Era2022G"},
-       {"2023Pre", "Era2023PreAll"},//Run based
-       {"2023Post","Era2023PostAll"},//Run based
-       {"2024",    "Era2024All"},//Run based
+       {"2023Pre", "Era2023PreAll"}, // Run based
+       {"2023Post","Era2023PostAll"},// Run based
+       {"2024",    "Era2024All"},    // Run based
     };
 
     for (const auto& year : mcYears) {
-        std::cout<<"-----------------" <<'\n';
+        std::cout<<"-----------------\n";
         std::cout<<"[MC] : "<<year <<'\n';
-        std::cout<<"-----------------" <<'\n';
+        std::cout<<"-----------------\n";
         TChain chain("Events");
         chain.Add(fInputMc.c_str());
-        NanoTree nanoT;
-        setupNanoBranches(&chain, nanoT, /*isData=*/false);
-        processEventsWithNominalOrSyst(chain, nanoT, fout, year, /*isData=*/false);
+        processEventsWithNominalOrSyst(chain, fout, year, /*isData=*/false);
     }
 
     for (const auto& [year, era] : dataConfigs) {
-        std::cout<<"-----------------"<<'\n';
+        std::cout<<"-----------------\n";
         std::cout<<"\n[Data] : "<<year <<" : "<<era <<'\n';
-        std::cout<<"-----------------" <<'\n';
+        std::cout<<"-----------------\n";
         TChain chain("Events");
         chain.Add(fInputData.c_str());
-        NanoTree nanoT;
-        setupNanoBranches(&chain, nanoT, /*isData=*/true);
-        processEventsWithNominalOrSyst(chain, nanoT, fout, year, /*isData=*/true, era);
+        processEventsWithNominalOrSyst(chain, fout, year, /*isData=*/true, era);
     }
 
     fout.Write();
