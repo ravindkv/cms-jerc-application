@@ -26,12 +26,77 @@ applyOnlyOnAK4 = False
 applyOnlyOnAK8 = False
 applyOnAK4AndAK8 = True
 applyOnMET = True
+isDebug = False
 
 # ---------------------------
 # Helpers / small utilities
 # ---------------------------
 
 from functools import lru_cache
+
+
+def printDebug(*args, indent: int = 0, enable: Optional[bool] = None) -> None:
+    """Conditionally print debug information with optional indentation."""
+    if enable is None:
+        enable = isDebug
+    if not enable:
+        return
+
+    prefix = " " * max(indent, 0)
+    message = " ".join(str(arg) for arg in args)
+    if prefix:
+        print(prefix + message)
+    else:
+        print(message)
+
+
+def _preview_values(arr, limit: int = 5):
+    """Return a small list of representative values from an array-like object."""
+    if limit <= 0:
+        return []
+
+    if isinstance(arr, ak.Array):
+        sample = arr[: max(1, limit)]
+        try:
+            flat = ak.flatten(sample, axis=None)
+            np_arr = ak.to_numpy(flat)
+        except Exception:
+            try:
+                as_list = ak.to_list(sample)
+            except Exception:
+                return []
+
+            collected = []
+
+            def collect(obj):
+                if len(collected) >= limit:
+                    return
+                if isinstance(obj, list):
+                    for item in obj:
+                        if len(collected) >= limit:
+                            break
+                        collect(item)
+                else:
+                    collected.append(obj)
+
+            collect(as_list)
+            return collected
+    else:
+        np_arr = np.asarray(arr)
+
+    if np_arr.size == 0:
+        return []
+
+    flat_np = np_arr.reshape(-1)
+    if flat_np.size == 0:
+        return []
+    return flat_np[:limit].tolist()
+
+
+def debug_values(label: str, arr, indent: int = 0, limit: int = 5) -> None:
+    """Helper to print a label and a preview of array values when debugging."""
+    values = _preview_values(arr, limit=limit)
+    printDebug(label, values, indent=indent)
 
 @lru_cache(maxsize=None)
 def load_json_cached(path: str) -> dict:
@@ -511,6 +576,8 @@ def process_events(input_file: str,
                    arrs):    # <-- added
 
 
+    printDebug(f"[Debug] Processing {syst_kind} (year={year}, isData={isData}, era={era})")
+
     # Aliases
     run = arrs["run"]
     lumi = arrs["luminosityBlock"]
@@ -522,6 +589,10 @@ def process_events(input_file: str,
     met_raw_phi = arrs["RawPuppiMET_phi"] if uses_puppi_met(year) else arrs["RawMET_phi"]
     met_raw_px = met_raw_pt * np.cos(met_raw_phi)
     met_raw_py = met_raw_pt * np.sin(met_raw_phi)
+
+    debug_values("[MET] Raw MET pt sample:", met_raw_pt, indent=4)
+    debug_values("[MET] Raw MET phi sample:", met_raw_phi, indent=4)
+    debug_values("[MET] Nano MET_pt sample:", arrs["MET_pt"], indent=4)
 
     # Hist group
     syst_set_name = "Nominal" if syst_kind == "Nominal" else ("ForUncertaintyJES" if syst_kind == "JES" else "ForUncertaintyJER")
@@ -543,6 +614,9 @@ def process_events(input_file: str,
     ak8_rawF = arrs["FatJet_rawFactor"]
     ak8_pt_raw = ak8_pt * (1.0 - ak8_rawF)
 
+    debug_values("[AK8] NanoAOD pt sample:", ak8_pt, indent=4)
+    debug_values("[AK8] Raw (undo rawFactor) pt sample:", ak8_pt_raw, indent=6)
+
     ak8_sel = (ak8_pt >= 100.0) & (abs(ak8_eta) <= 5.2)
     ak8_idx = ak.local_index(ak8_pt, axis=1)
     ak8_keep_idx = ak8_idx[ak8_sel]
@@ -562,6 +636,9 @@ def process_events(input_file: str,
     ak4_chEm = arrs["Jet_chEmEF"]
     ak4_id = arrs["Jet_jetId"]
     ak4_pt_raw = ak4_pt * (1.0 - ak4_rawF)
+
+    debug_values("[AK4] NanoAOD pt sample:", ak4_pt, indent=4)
+    debug_values("[AK4] Raw (undo rawFactor) pt sample:", ak4_pt_raw, indent=6)
 
     basic_ak4 = (ak4_pt >= 15.0) & (abs(ak4_eta) <= 5.2)
 
@@ -598,15 +675,19 @@ def process_events(input_file: str,
     # JES nominal for AK4/AK8 (always applied first)
     # ---------------------------
     # AK8
-    ak8_pt_corr, _ak8_l1 = jes_nominal(
+    ak8_pt_corr, ak8_pt_after_l1 = jes_nominal(
         pt_raw=ak8_pt_raw, eta=ak8_eta, phi=ak8_phi, area=ak8_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK8
     )
+    debug_values("[AK8] After L1FastJet pt sample:", ak8_pt_after_l1, indent=6)
+    debug_values("[AK8] JES nominal corrected pt sample:", ak8_pt_corr, indent=6)
     # AK4 (for analysis jets)
     ak4_pt_corr_nom, ak4_pt_after_l1 = jes_nominal(
         pt_raw=ak4_pt_raw, eta=ak4_eta, phi=ak4_phi, area=ak4_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK4
     )
+    debug_values("[AK4] After L1FastJet pt sample:", ak4_pt_after_l1, indent=6)
+    debug_values("[AK4] JES nominal corrected pt sample:", ak4_pt_corr_nom, indent=6)
 
     # ---------------------------
     # JES systematics (MC only) if requested
@@ -671,15 +752,20 @@ def process_events(input_file: str,
     else:
         ak4_pt_corr = ak4_pt_corr_nom  # Data: no JER
 
+    debug_values("[AK8] Final corrected pt sample:", ak8_pt_corr, indent=6)
+    debug_values("[AK4] Final corrected pt sample:", ak4_pt_corr, indent=6)
+
     # ---------------------------
     # MET Type-1 propagation (AK4 only)
     # ---------------------------
     if applyOnMET:
         pt_raw_mu = ak4_pt_raw * (1.0 - ak4_muSub)
+        debug_values("[MET] Jet pt after muon subtraction sample:", pt_raw_mu, indent=6)
 
         # L1FastJet(area, eta, pt, rho)
         l1_corr = _eval_numeric(refsAK4.cL1, ak4_area, ak4_eta, pt_raw_mu, rho)
         pt_l1 = pt_raw_mu * l1_corr
+        debug_values("[MET] Jet pt after L1FastJet (Type-1) sample:", pt_l1, indent=8)
 
         # L2Relative
         if has_phi_dependent_L2(year):
@@ -687,6 +773,7 @@ def process_events(input_file: str,
         else:
             l2_corr = _eval_numeric(refsAK4.cL2, ak4_eta, pt_l1)
         pt_tmp = pt_l1 * l2_corr
+        debug_values("[MET] Jet pt after L2Relative sample:", pt_tmp, indent=8)
 
         # Residuals (data only)
         if isData:
@@ -696,6 +783,7 @@ def process_events(input_file: str,
             else:
                 res_corr = _eval_numeric(refsAK4.cL2L3Res, ak4_eta, pt_tmp)
             pt_tmp = pt_tmp * res_corr
+            debug_values("[MET] Jet pt after residual corrections sample:", pt_tmp, indent=8)
 
         # JES syst for MET path (MC only, only on this pass)
         if is_mc(isData) and syst_kind == "JES" and jes_ak4_tag:
@@ -703,6 +791,7 @@ def process_events(input_file: str,
             scale = _eval_numeric(cnode, ak4_eta, pt_tmp)
             shift = (1.0 + scale) if jes_var == "Up" else (1.0 - scale)
             pt_tmp = pt_tmp * shift
+            debug_values("[MET] Jet pt after JES systematic sample:", pt_tmp, indent=8)
 
         # JER for MET path (MC only)
         if is_mc(isData):
@@ -720,8 +809,10 @@ def process_events(input_file: str,
                 genIdx=gen_idx, gen_pt=gpt, gen_eta=geta, gen_phi=gphi,
                 mindr=0.2, region=jer_bin
             )
+            debug_values("[MET] Jet pt after JER smearing sample:", pt_corr_met, indent=8)
         else:
             pt_corr_met = pt_tmp
+            debug_values("[MET] Jet pt for MET propagation sample:", pt_corr_met, indent=8)
 
         pass_for_met = (pt_corr_met > 15.0) & (abs(ak4_eta) < 5.2) & ((ak4_chEm + ak4_neEm) < 0.9)
         dpt = ak.where(pass_for_met, pt_corr_met - pt_l1, 0.0)
@@ -731,9 +822,11 @@ def process_events(input_file: str,
         met_px = met_raw_px - sum_px
         met_py = met_raw_py - sum_py
         met_pt_corr = np.hypot(met_px, met_py)
+        debug_values("[MET] Type-1 corrected MET pt sample:", met_pt_corr, indent=6)
         fill_h1_from_array(H["hMET"], met_pt_corr)
     else:
         fill_h1_from_array(H["hMET"], arrs["MET_pt"])
+        debug_values("[MET] MET_pt without Type-1 corrections sample:", arrs["MET_pt"], indent=6)
 
 
     # ---------------------------
