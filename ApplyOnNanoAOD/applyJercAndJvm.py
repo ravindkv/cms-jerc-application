@@ -780,7 +780,10 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
     refsAK8 = CorrCache.get_refs("AK8", year, isData, era)
     jvm_ref, jvm_key = CorrCache.get_jvm(year)
 
-    arrs = read_event_arrays(input_file, isData)
+    # --- NEW: fresh arrays provider so every pass starts from raw Nano
+    def fresh_arrays():
+        return read_event_arrays(input_file, isData)
+
     # 0) Nominal
     print(" [Nominal]")
     process_events(input_file, fout, year, isData, era,
@@ -788,7 +791,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                    jes_ak4_tag=None, jes_ak8_tag=None, jes_var=None,
                    jer_bin=None, jer_var=None,
                    refsAK4=refsAK4, refsAK8=refsAK8,
-                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=arrs)
+                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
 
     if is_mc(isData):
         # 1) Correlated JES systematics
@@ -802,7 +805,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                                        jes_ak4_tag=fullTag, jes_ak8_tag=None, jes_var=var,
                                        jer_bin=None, jer_var=None,
                                        refsAK4=refsAK4, refsAK8=refsAK8,
-                                       jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=arrs)
+                                       jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
         elif applyOnlyOnAK8:
             for setName, pairs in sAK8.items():
                 for fullTag, baseName in pairs:
@@ -813,7 +816,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                                        jes_ak4_tag=None, jes_ak8_tag=fullTag, jes_var=var,
                                        jer_bin=None, jer_var=None,
                                        refsAK4=refsAK4, refsAK8=refsAK8,
-                                       jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=arrs)
+                                       jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
         else:
             base_to_ak4 = {base: full for setName, pairs in sAK4.items() for (full, base) in pairs}
             base_to_ak8 = {base: full for setName, pairs in sAK8.items() for (full, base) in pairs}
@@ -828,7 +831,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                                    jes_var=var,
                                    jer_bin=None, jer_var=None,
                                    refsAK4=refsAK4, refsAK8=refsAK8,
-                                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=arrs)
+                                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
 
         # 2) JER systematics (region-gated up/down)
         for setName, bins in jerSets.items():
@@ -840,7 +843,8 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                                    jes_ak4_tag=None, jes_ak8_tag=None, jes_var=None,
                                    jer_bin=b, jer_var=var,
                                    refsAK4=refsAK4, refsAK8=refsAK8,
-                                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=arrs)
+                                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
+
 
 
 # ---------------------------
