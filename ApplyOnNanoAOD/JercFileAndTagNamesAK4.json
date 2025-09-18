@@ -1,6 +1,6 @@
 {
   "2016Pre": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2016preVFP_UL/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016preVFP-UL-NanoAODv9/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer19UL16APV_V7_MC_L1FastJet_AK4PFchs",
     "tagNameL2Relative": "Summer19UL16APV_V7_MC_L2Relative_AK4PFchs",
     "tagNameL3Absolute": "Summer19UL16APV_V7_MC_L3Absolute_AK4PFchs",
@@ -86,7 +86,7 @@
     }
   },
   "2016Post": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2016postVFP_UL/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer19UL16_V7_MC_L1FastJet_AK4PFchs",
     "tagNameL2Relative": "Summer19UL16_V7_MC_L2Relative_AK4PFchs",
     "tagNameL3Absolute": "Summer19UL16_V7_MC_L3Absolute_AK4PFchs",
@@ -165,7 +165,7 @@
     }
   },
   "2017": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2017_UL/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2017-UL-NanoAODv9/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer19UL17_V5_MC_L1FastJet_AK4PFchs",
     "tagNameL2Relative": "Summer19UL17_V5_MC_L2Relative_AK4PFchs",
     "tagNameL3Absolute": "Summer19UL17_V5_MC_L3Absolute_AK4PFchs",
@@ -272,7 +272,7 @@
     }
   },
   "2018": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2018_UL/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer19UL18_V5_MC_L1FastJet_AK4PFchs",
     "tagNameL2Relative": "Summer19UL18_V5_MC_L2Relative_AK4PFchs",
     "tagNameL3Absolute": "Summer19UL18_V5_MC_L3Absolute_AK4PFchs",
@@ -372,7 +372,7 @@
     }
   },
   "2022Pre": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2022_Summer22/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22CDSep23-Summer22-NanoAODv12/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer22_22Sep2023_V2_MC_L1FastJet_AK4PFPuppi",
     "tagNameL2Relative": "Summer22_22Sep2023_V2_MC_L2Relative_AK4PFPuppi",
     "tagNameL3Absolute": "Summer22_22Sep2023_V2_MC_L3Absolute_AK4PFPuppi",
@@ -458,7 +458,7 @@
     }
   },
   "2022Post": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2022_Summer22EE/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer22EE_22Sep2023_V2_MC_L1FastJet_AK4PFPuppi",
     "tagNameL2Relative": "Summer22EE_22Sep2023_V2_MC_L2Relative_AK4PFPuppi",
     "tagNameL3Absolute": "Summer22EE_22Sep2023_V2_MC_L3Absolute_AK4PFPuppi",
@@ -551,7 +551,7 @@
     }
   },
   "2023Pre": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2023_Summer23/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer23Prompt23_V2_MC_L1FastJet_AK4PFPuppi",
     "tagNameL2Relative": "Summer23Prompt23_V2_MC_L2Relative_AK4PFPuppi",
     "tagNameL3Absolute": "Summer23Prompt23_V2_MC_L3Absolute_AK4PFPuppi",
@@ -630,7 +630,7 @@
     }
   },
   "2023Post": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2023_Summer23BPix/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23DSep23-Summer23BPix-NanoAODv12/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer23BPixPrompt23_V3_MC_L1FastJet_AK4PFPuppi",
     "tagNameL2Relative": "Summer23BPixPrompt23_V3_MC_L2Relative_AK4PFPuppi",
     "tagNameL3Absolute": "Summer23BPixPrompt23_V3_MC_L3Absolute_AK4PFPuppi",
@@ -709,7 +709,7 @@
     }
   },
   "2024": {
-    "jercJsonPath": "/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2024_Summer24/jet_jerc.json.gz",
+    "jercJsonPath": "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/latest/jet_jerc.json.gz",
     "tagNameL1FastJet": "Summer24Prompt24_V1_MC_L1FastJet_AK4PFPuppi",
     "tagNameL2Relative": "Summer24Prompt24_V1_MC_L2Relative_AK4PFPuppi",
     "tagNameL3Absolute": "Summer24Prompt24_V1_MC_L3Absolute_AK4PFPuppi",

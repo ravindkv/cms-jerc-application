@@ -26,7 +26,7 @@ applyOnlyOnAK4 = False
 applyOnlyOnAK8 = False
 applyOnAK4AndAK8 = True
 applyOnMET = True
-isDebug = False
+isDebug = True
 
 # ---------------------------
 # Helpers / small utilities
@@ -90,7 +90,7 @@ def _preview_values(arr, limit: int = 5):
     flat_np = np_arr.reshape(-1)
     if flat_np.size == 0:
         return []
-    return flat_np[:limit].tolist()
+    return [round(v, 1) for v in flat_np[:limit].tolist()]
 
 
 def debug_values(label: str, arr, indent: int = 0, limit: int = 5) -> None:
@@ -533,6 +533,53 @@ def fill_h1_from_array(h: ROOT.TH1F, arr):
         h.SetBinContent(i, counts[i - 1])
         h.SetBinError(i, math.sqrt(counts[i - 1]))
 
+def _norm_dir_name(x, default="Nominal"):
+    # treat None, "", "None" as default; always return a plain str
+    if x is None: 
+        return default
+    s = str(x)
+    return default if s.strip() == "" or s.strip().lower() == "none" else s
+
+def ensure_dir(parent, name):
+    import ROOT
+    if not isinstance(parent, ROOT.TDirectory):
+        raise TypeError(f"ensure_dir: 'parent' must be a TDirectory, got {type(parent)}")
+    name = _norm_dir_name(name, default="Nominal")
+    # Try GetDirectory; if not found, mkdir
+    d = parent.GetDirectory(name)
+    if not d:
+        # ROOT sometimes caches; also try generic Get
+        got = parent.Get(name)
+        d = got if isinstance(got, ROOT.TDirectory) else parent.mkdir(name)
+    d.cd()
+    return d
+
+def write_histos_block(fout, year, era, isData, syst_kind, jes_var, histos):
+    import ROOT
+    # normalize everything to strings
+    year_str = _norm_dir_name(year, default="YearUnknown")
+    era_str  = _norm_dir_name(era,  default=("EraUnknown" if isData else "RunII"))
+    syst_str = _norm_dir_name(syst_kind, default="Nominal")
+    jes_str  = _norm_dir_name(jes_var,    default="Nominal")
+
+    fout.cd()
+    d_year = ensure_dir(fout, year_str)
+    d_top  = ensure_dir(d_year, "Data" if isData else "MC")
+    d_era  = ensure_dir(d_top, era_str)
+    d_syst = ensure_dir(d_era, syst_str)
+
+    # collapse double-Nominal to a single leaf named "Nominal"
+    leaf_name = "Nominal" if syst_str == "Nominal" else jes_str
+    d_leaf = ensure_dir(d_syst, leaf_name)
+
+    for h in histos:
+        # keep independent of current dir, then write explicitly
+        h.SetDirectory(0)
+        d_leaf.WriteObject(h, h.GetName())
+
+    d_leaf.SaveSelf(True)  # optional flush
+
+
 def read_event_arrays(input_file: str, isData: bool):
     with uproot.open(input_file) as fin:
         t = fin["Events"]
@@ -583,7 +630,6 @@ def process_events(input_file: str,
     lumi = arrs["luminosityBlock"]
     evt = arrs["event"]
     rho = arrs["Rho_fixedGridRhoFastjetAll"]
-
     # Nano "raw" MET choice per year
     met_raw_pt = arrs["RawPuppiMET_pt"] if uses_puppi_met(year) else arrs["RawMET_pt"]
     met_raw_phi = arrs["RawPuppiMET_phi"] if uses_puppi_met(year) else arrs["RawMET_phi"]
@@ -852,6 +898,8 @@ def process_events(input_file: str,
     if applyOnlyOnAK4 or applyOnAK4AndAK8:
         fill_h1_from_array(H["hJetPt_AK4"], ak4_pt_corr[ak4_sel_nonoverlap])
 
+    write_histos_block(fout, year, era, isData, syst_kind, jes_var, list(H.values()))
+
 # ---------------------------
 # High-level driver (years & systematics)
 # ---------------------------
@@ -949,7 +997,7 @@ def main():
     fInputMc   = "NanoAOD_MC.root"
 
     # Output file
-    outName = "output.root"
+    outName = "output_Py.root"
     fout = ROOT.TFile(outName, "RECREATE")
 
     # Year configs (match C++)
@@ -977,7 +1025,7 @@ def main():
         print("-----------------")
         print(f"[MC] : {year}")
         print("-----------------")
-        process_with_nominal_and_syst(fInputMc, fout, year, isData=False)
+        #process_with_nominal_and_syst(fInputMc, fout, year, isData=False)
 
     # Data
     for year, era in dataConfigs:
@@ -986,7 +1034,7 @@ def main():
         print("-----------------")
         process_with_nominal_and_syst(fInputData, fout, year, isData=True, era=era)
 
-    fout.Write()
+    fout.Write("", ROOT.TObject.kOverwrite)
     fout.Close()
     print(f"Wrote output to {outName}")
 

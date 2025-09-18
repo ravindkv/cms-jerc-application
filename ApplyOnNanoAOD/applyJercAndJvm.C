@@ -1387,41 +1387,41 @@ void applyJercAndJvm() {
     const std::string fInputMc   = "NanoAOD_MC.root";
 
     // Prepare output file
-    std::string outName = "output.root";
+    std::string outName = "output_C.root";
     TFile fout(outName.c_str(), "RECREATE");
 
     std::vector<std::string> mcYears = {
         "2016Pre", 
-        "2016Post",
-        "2017",
-        "2018",
-        "2022Pre",
-        "2022Post",
-        "2023Pre",
-        "2023Post",
-        "2024"
+        //"2016Post",
+        //"2017",
+        //"2018",
+        //"2022Pre",
+        //"2022Post",
+        //"2023Pre",
+        //"2023Post",
+        //"2024"
     };
     std::vector<std::pair<std::string, std::string>> dataConfigs = {
        {"2016Pre", "Era2016PreBCD"},
-       {"2016Pre", "Era2016PreEF"},
-       {"2016Post","Era2016PostFGH"},
-       {"2017",    "Era2017B"},
-       {"2017",    "Era2017C"},
-       {"2017",    "Era2017D"},
-       {"2017",    "Era2017E"},
-       {"2017",    "Era2017F"},
-       {"2018",    "Era2018A"},
-       {"2018",    "Era2018B"},
-       {"2018",    "Era2018C"},
-       {"2018",    "Era2018D"},
-       {"2022Pre", "Era2022C"},
-       {"2022Pre", "Era2022D"},
-       {"2022Post","Era2022E"},
-       {"2022Post","Era2022F"},
-       {"2022Post","Era2022G"},
-       {"2023Pre", "Era2023PreAll"}, // Run based
-       {"2023Post","Era2023PostAll"},// Run based
-       {"2024",    "Era2024All"},    // Run based
+      //{"2016Pre", "Era2016PreEF"},
+      //{"2016Post","Era2016PostFGH"},
+      //{"2017",    "Era2017B"},
+      //{"2017",    "Era2017C"},
+      //{"2017",    "Era2017D"},
+      //{"2017",    "Era2017E"},
+      //{"2017",    "Era2017F"},
+      //{"2018",    "Era2018A"},
+      //{"2018",    "Era2018B"},
+      //{"2018",    "Era2018C"},
+      //{"2018",    "Era2018D"},
+      //{"2022Pre", "Era2022C"},
+      //{"2022Pre", "Era2022D"},
+      //{"2022Post","Era2022E"},
+      //{"2022Post","Era2022F"},
+      //{"2022Post","Era2022G"},
+      //{"2023Pre", "Era2023PreAll"}, // Run based
+      //{"2023Post","Era2023PostAll"},// Run based
+      //{"2024",    "Era2024All"},    // Run based
     };
 
     for (const auto& year : mcYears) {
@@ -1430,7 +1430,7 @@ void applyJercAndJvm() {
         std::cout<<"-----------------\n";
         TChain chain("Events");
         chain.Add(fInputMc.c_str());
-        processEventsWithNominalOrSyst(chain, fout, year, /*isData=*/false);
+        //processEventsWithNominalOrSyst(chain, fout, year, /*isData=*/false);
     }
 
     for (const auto& [year, era] : dataConfigs) {
