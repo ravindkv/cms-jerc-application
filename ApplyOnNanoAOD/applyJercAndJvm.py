@@ -93,10 +93,100 @@ def _preview_values(arr, limit: int = 5):
     return [round(v, 1) for v in flat_np[:limit].tolist()]
 
 
-def debug_values(label: str, arr, indent: int = 0, limit: int = 5) -> None:
+def _extract_event_slice(arr, event_index: int, mask=None):
+    """Return the slice of ``arr`` corresponding to ``event_index`` and optional ``mask``."""
+
+    if event_index is None:
+        return arr
+
+    data = arr
+    if isinstance(arr, ak.Array):
+        if len(arr) <= event_index:
+            return arr
+        data = arr[event_index]
+        if mask is not None:
+            mask_arr = mask[event_index]
+            try:
+                data = data[mask_arr]
+            except Exception:
+                pass
+    else:
+        np_arr = np.asarray(arr)
+        if np_arr.ndim == 0:
+            data = np_arr
+        elif event_index < np_arr.shape[0]:
+            data = np_arr[event_index]
+            if mask is not None:
+                mask_arr = np.asarray(mask)
+                try:
+                    mask_slice = mask_arr[event_index]
+                    data = data[mask_slice]
+                except Exception:
+                    pass
+        else:
+            data = np_arr
+    return data
+
+
+def debug_values(
+    label: str,
+    arr,
+    indent: int = 0,
+    limit: int = 5,
+    event_index: Optional[int] = None,
+    mask=None,
+) -> None:
     """Helper to print a label and a preview of array values when debugging."""
-    values = _preview_values(arr, limit=limit)
+    values = _preview_values(_extract_event_slice(arr, event_index, mask=mask), limit=limit)
     printDebug(f"Showing 5 values: {label}", values, indent=indent)
+
+
+def _find_debug_event_index(
+    ak4_sel,
+    ak8_sel,
+    apply_only_ak4: bool,
+    apply_only_ak8: bool,
+    apply_both: bool,
+) -> Optional[int]:
+    """Return index of an event suitable for debug printing based on jet selections."""
+
+    if not isDebug:
+        return None
+
+    n_events = len(ak4_sel) if ak4_sel is not None else len(ak8_sel)
+    if n_events == 0:
+        return None
+
+    def to_mask(selection):
+        if selection is None:
+            return np.zeros(n_events, dtype=bool)
+        if len(selection) == 0:
+            return np.zeros(n_events, dtype=bool)
+        try:
+            mask = ak.to_numpy(ak.any(selection, axis=1))
+        except Exception:
+            mask = np.zeros(n_events, dtype=bool)
+        if mask.shape[0] != n_events:
+            mask = np.resize(mask, n_events)
+        return mask
+
+    ak4_mask = to_mask(ak4_sel)
+    ak8_mask = to_mask(ak8_sel)
+
+    if apply_both:
+        candidate_mask = ak4_mask & ak8_mask
+    elif apply_only_ak4:
+        candidate_mask = ak4_mask
+    elif apply_only_ak8:
+        candidate_mask = ak8_mask
+    else:
+        candidate_mask = ak4_mask | ak8_mask
+
+    candidate_idx = np.nonzero(candidate_mask)[0]
+    if candidate_idx.size == 0:
+        return None
+
+    return int(candidate_idx[0])
 
 @lru_cache(maxsize=None)
 def load_json_cached(path: str) -> dict:
@@ -700,30 +790,115 @@ def process_events(input_file: str,
     if H["hMET_Nano"] is not None:
         fill_h1_from_array(H["hMET_Nano"], arrs["MET_pt"])
 
+    debug_event_index = None
+    if isDebug:
+        debug_event_index = _find_debug_event_index(
+            ak4_sel_nonoverlap,
+            ak8_sel,
+            applyOnlyOnAK4,
+            applyOnlyOnAK8,
+            applyOnAK4AndAK8,
+        )
+        if debug_event_index is not None:
+            def _count_selected(selection) -> int:
+                if selection is None or len(selection) <= debug_event_index:
+                    return 0
+                try:
+                    return int(ak.sum(selection[debug_event_index]))
+                except Exception:
+                    return 0
+
+            num_ak4 = _count_selected(ak4_sel_nonoverlap)
+            num_ak8 = _count_selected(ak8_sel)
+            printDebug(
+                f"Debugging event index {debug_event_index}: selected AK4 jets = {num_ak4}, selected AK8 jets = {num_ak8}",
+                indent=2,
+            )
+        else:
+            printDebug(
+                "No event found with the requested jet selection for debug output.",
+                indent=2,
+            )
+
+    print_ak4_debug = debug_event_index is not None and (applyOnlyOnAK4 or applyOnAK4AndAK8)
+    print_ak8_debug = debug_event_index is not None and (applyOnlyOnAK8 or applyOnAK4AndAK8)
+
     # ---------------------------
     # JES nominal for AK4/AK8 (always applied first)
     # ---------------------------
     # AK8
-    debug_values("[AK8] NanoAOD pt sample:", ak8_pt, indent=4)
-    debug_values("[AK8] Raw (undo rawFactor) pt sample:", ak8_pt_raw, indent=6)
+    if print_ak8_debug:
+        debug_values(
+            "[AK8] NanoAOD pt sample:",
+            ak8_pt,
+            indent=4,
+            event_index=debug_event_index,
+            mask=ak8_sel,
+        )
+        debug_values(
+            "[AK8] Raw (undo rawFactor) pt sample:",
+            ak8_pt_raw,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak8_sel,
+        )
 
     ak8_pt_corr, ak8_pt_after_l1 = jes_nominal(
         pt_raw=ak8_pt_raw, eta=ak8_eta, phi=ak8_phi, area=ak8_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK8
     )
-    debug_values("[AK8] After L1FastJet pt sample:", ak8_pt_after_l1, indent=6)
-    debug_values("[AK8] JES nominal corrected pt sample:", ak8_pt_corr, indent=6)
+    if print_ak8_debug:
+        debug_values(
+            "[AK8] After L1FastJet pt sample:",
+            ak8_pt_after_l1,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak8_sel,
+        )
+        debug_values(
+            "[AK8] JES nominal corrected pt sample:",
+            ak8_pt_corr,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak8_sel,
+        )
 
     # AK4 (for analysis jets)
-    debug_values("[AK4] NanoAOD pt sample:", ak4_pt, indent=4)
-    debug_values("[AK4] Raw (undo rawFactor) pt sample:", ak4_pt_raw, indent=6)
+    if print_ak4_debug:
+        debug_values(
+            "[AK4] NanoAOD pt sample:",
+            ak4_pt,
+            indent=4,
+            event_index=debug_event_index,
+            mask=ak4_sel_nonoverlap,
+        )
+        debug_values(
+            "[AK4] Raw (undo rawFactor) pt sample:",
+            ak4_pt_raw,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak4_sel_nonoverlap,
+        )
 
     ak4_pt_corr_nom, ak4_pt_after_l1 = jes_nominal(
         pt_raw=ak4_pt_raw, eta=ak4_eta, phi=ak4_phi, area=ak4_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK4
     )
-    debug_values("[AK4] After L1FastJet pt sample:", ak4_pt_after_l1, indent=6)
-    debug_values("[AK4] JES nominal corrected pt sample:", ak4_pt_corr_nom, indent=6)
+    if print_ak4_debug:
+        debug_values(
+            "[AK4] After L1FastJet pt sample:",
+            ak4_pt_after_l1,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak4_sel_nonoverlap,
+        )
+        debug_values(
+            "[AK4] JES nominal corrected pt sample:",
+            ak4_pt_corr_nom,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak4_sel_nonoverlap,
+        )
 
     # ---------------------------
     # JES systematics (MC only) if requested
@@ -788,8 +963,22 @@ def process_events(input_file: str,
     else:
         ak4_pt_corr = ak4_pt_corr_nom  # Data: no JER
 
-    debug_values("[AK8] Final corrected pt sample:", ak8_pt_corr, indent=6)
-    debug_values("[AK4] Final corrected pt sample:", ak4_pt_corr, indent=6)
+    if print_ak8_debug:
+        debug_values(
+            "[AK8] Final corrected pt sample:",
+            ak8_pt_corr,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak8_sel,
+        )
+    if print_ak4_debug:
+        debug_values(
+            "[AK4] Final corrected pt sample:",
+            ak4_pt_corr,
+            indent=6,
+            event_index=debug_event_index,
+            mask=ak4_sel_nonoverlap,
+        )
 
     # ---------------------------
     # MET Type-1 propagation (AK4 only)
