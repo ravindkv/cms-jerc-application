@@ -96,7 +96,7 @@ def _preview_values(arr, limit: int = 5):
 def debug_values(label: str, arr, indent: int = 0, limit: int = 5) -> None:
     """Helper to print a label and a preview of array values when debugging."""
     values = _preview_values(arr, limit=limit)
-    printDebug(label, values, indent=indent)
+    printDebug(f"Showing 5 values: {label}", values, indent=indent)
 
 @lru_cache(maxsize=None)
 def load_json_cached(path: str) -> dict:
@@ -629,24 +629,13 @@ def process_events(input_file: str,
     run = arrs["run"]
     lumi = arrs["luminosityBlock"]
     evt = arrs["event"]
+    
     rho = arrs["Rho_fixedGridRhoFastjetAll"]
-    # Nano "raw" MET choice per year
-    met_raw_pt = arrs["RawPuppiMET_pt"] if uses_puppi_met(year) else arrs["RawMET_pt"]
-    met_raw_phi = arrs["RawPuppiMET_phi"] if uses_puppi_met(year) else arrs["RawMET_phi"]
-    met_raw_px = met_raw_pt * np.cos(met_raw_phi)
-    met_raw_py = met_raw_pt * np.sin(met_raw_phi)
-
-    debug_values("[MET] Raw MET pt sample:", met_raw_pt, indent=4)
-    debug_values("[MET] Raw MET phi sample:", met_raw_phi, indent=4)
-    debug_values("[MET] Nano MET_pt sample:", arrs["MET_pt"], indent=4)
-
     # Hist group
     syst_set_name = "Nominal" if syst_kind == "Nominal" else ("ForUncertaintyJES" if syst_kind == "JES" else "ForUncertaintyJER")
     syst_name = "Nominal"
     if syst_kind == "JES":
-        # Use custom base name like in C++: "Base_Up/Down"
         base = jes_ak4_tag or jes_ak8_tag or "JES"
-        # In your JSON, we’ll pass a friendlier display (handled upstream)
         syst_name = f"{base}_{jes_var}"
     elif syst_kind == "JER":
         syst_name = f"{jer_bin.label}_{'Up' if jer_var=='up' else 'Down'}"
@@ -659,9 +648,6 @@ def process_events(input_file: str,
     ak8_area = arrs["FatJet_area"]
     ak8_rawF = arrs["FatJet_rawFactor"]
     ak8_pt_raw = ak8_pt * (1.0 - ak8_rawF)
-
-    debug_values("[AK8] NanoAOD pt sample:", ak8_pt, indent=4)
-    debug_values("[AK8] Raw (undo rawFactor) pt sample:", ak8_pt_raw, indent=6)
 
     ak8_sel = (ak8_pt >= 100.0) & (abs(ak8_eta) <= 5.2)
     ak8_idx = ak.local_index(ak8_pt, axis=1)
@@ -682,9 +668,6 @@ def process_events(input_file: str,
     ak4_chEm = arrs["Jet_chEmEF"]
     ak4_id = arrs["Jet_jetId"]
     ak4_pt_raw = ak4_pt * (1.0 - ak4_rawF)
-
-    debug_values("[AK4] NanoAOD pt sample:", ak4_pt, indent=4)
-    debug_values("[AK4] Raw (undo rawFactor) pt sample:", ak4_pt_raw, indent=6)
 
     basic_ak4 = (ak4_pt >= 15.0) & (abs(ak4_eta) <= 5.2)
 
@@ -721,13 +704,20 @@ def process_events(input_file: str,
     # JES nominal for AK4/AK8 (always applied first)
     # ---------------------------
     # AK8
+    debug_values("[AK8] NanoAOD pt sample:", ak8_pt, indent=4)
+    debug_values("[AK8] Raw (undo rawFactor) pt sample:", ak8_pt_raw, indent=6)
+
     ak8_pt_corr, ak8_pt_after_l1 = jes_nominal(
         pt_raw=ak8_pt_raw, eta=ak8_eta, phi=ak8_phi, area=ak8_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK8
     )
     debug_values("[AK8] After L1FastJet pt sample:", ak8_pt_after_l1, indent=6)
     debug_values("[AK8] JES nominal corrected pt sample:", ak8_pt_corr, indent=6)
+
     # AK4 (for analysis jets)
+    debug_values("[AK4] NanoAOD pt sample:", ak4_pt, indent=4)
+    debug_values("[AK4] Raw (undo rawFactor) pt sample:", ak4_pt_raw, indent=6)
+
     ak4_pt_corr_nom, ak4_pt_after_l1 = jes_nominal(
         pt_raw=ak4_pt_raw, eta=ak4_eta, phi=ak4_phi, area=ak4_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK4
@@ -805,6 +795,17 @@ def process_events(input_file: str,
     # MET Type-1 propagation (AK4 only)
     # ---------------------------
     if applyOnMET:
+        # Nano "raw" MET choice per year
+        met_raw_pt = arrs["RawPuppiMET_pt"] if uses_puppi_met(year) else arrs["RawMET_pt"]
+        met_raw_phi = arrs["RawPuppiMET_phi"] if uses_puppi_met(year) else arrs["RawMET_phi"]
+        met_raw_px = met_raw_pt * np.cos(met_raw_phi)
+        met_raw_py = met_raw_pt * np.sin(met_raw_phi)
+        
+        print(met_raw_pt)
+        debug_values("[MET] Raw MET pt sample:", met_raw_pt, indent=4)
+        debug_values("[MET] Raw MET phi sample:", met_raw_phi, indent=4)
+        debug_values("[MET] Nano MET_pt sample:", arrs["MET_pt"], indent=4)
+
         pt_raw_mu = ak4_pt_raw * (1.0 - ak4_muSub)
         debug_values("[MET] Jet pt after muon subtraction sample:", pt_raw_mu, indent=6)
 
