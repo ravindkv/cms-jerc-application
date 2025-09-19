@@ -594,11 +594,17 @@ def make_hists(fout: ROOT.TFile, year: str, isData: bool, era: Optional[str],
     if isData and era:
         parts.append(era)
     parts += [syst_set, syst_name]
+
+    # Preserve the current directory so we can restore it after creating the
+    # histogram directory structure.  PyROOT updates gDirectory implicitly when
+    # creating sub-directories.
+    prev_dir = ROOT.gDirectory
     d = mkdirs(fout, parts)
 
     def h1(name):
         h = ROOT.TH1F(name, "", 50, 10.0, 510.0)
         h.Sumw2()
+        h.SetDirectory(d)
         return h
 
     H = {
@@ -609,7 +615,35 @@ def make_hists(fout: ROOT.TFile, year: str, isData: bool, era: Optional[str],
         "hJetPt_AK8_Nano": h1("hJetPt_AK8_Nano") if also_nano else None,
         "hMET_Nano": h1("hMET_Nano") if also_nano else None,
     }
-    return H
+
+    if prev_dir:
+        prev_dir.cd()
+
+    return H, d
+
+
+def write_histograms_to_directory(directory: ROOT.TDirectory, histograms: Dict[str, Optional[ROOT.TH1]]):
+    """Write all non-null histograms to the provided directory."""
+
+    if not isinstance(directory, ROOT.TDirectory):
+        raise TypeError(
+            f"write_histograms_to_directory: expected ROOT.TDirectory, got {type(directory)}"
+        )
+
+    prev_dir = ROOT.gDirectory
+    directory.cd()
+    try:
+        for hist in histograms.values():
+            if hist is None:
+                continue
+            # Ensure the histogram is owned by the destination directory and
+            # write/overwrite it.  SetDirectory keeps ROOT from auto-assigning
+            # it elsewhere if gDirectory changes in between calls.
+            hist.SetDirectory(directory)
+            hist.Write(hist.GetName(), ROOT.TObject.kOverwrite)
+    finally:
+        if prev_dir:
+            prev_dir.cd()
 
 def fill_h1_from_array(h: ROOT.TH1F, arr):
     if h is None:
@@ -726,7 +760,15 @@ def process_events(input_file: str,
         syst_name = f"{base}_{jes_var}"
     elif syst_kind == "JER":
         syst_name = f"{jer_bin.label}_{'Up' if jer_var=='up' else 'Down'}"
-    H = make_hists(fout, year, isData, era, syst_set_name, syst_name, also_nano=(syst_kind=="Nominal"))
+    H, hist_dir = make_hists(
+        fout,
+        year,
+        isData,
+        era,
+        syst_set_name,
+        syst_name,
+        also_nano=(syst_kind == "Nominal"),
+    )
 
     # --- AK8 preselect
     ak8_pt = arrs["FatJet_pt"]
@@ -1034,6 +1076,9 @@ def process_events(input_file: str,
         fill_h1_from_array(H["hJetPt_AK8"], ak8_pt_corr[ak8_sel])
     if applyOnlyOnAK4 or applyOnAK4AndAK8:
         fill_h1_from_array(H["hJetPt_AK4"], ak4_pt_corr[ak4_sel_nonoverlap])
+
+    # Persist histograms to the output file inside the correct directory tree.
+    write_histograms_to_directory(hist_dir, H)
 
 # ---------------------------
 # High-level driver (years & systematics)
