@@ -90,7 +90,7 @@ def _preview_values(arr, limit: int = 5):
     flat_np = np_arr.reshape(-1)
     if flat_np.size == 0:
         return []
-    return [round(v, 1) for v in flat_np[:limit].tolist()]
+    return [round(v, 2) for v in flat_np[:limit].tolist()]
 
 
 def _extract_event_slice(arr, event_index: int, mask=None):
@@ -138,7 +138,7 @@ def debug_values(
 ) -> None:
     """Helper to print a label and a preview of array values when debugging."""
     values = _preview_values(_extract_event_slice(arr, event_index, mask=mask), limit=limit)
-    printDebug(f"Showing 5 values: {label}", values, indent=indent)
+    printDebug(f"{label}", values, indent=indent)
 
 
 def _find_debug_event_index(
@@ -644,30 +644,26 @@ def ensure_dir(parent, name):
     d.cd()
     return d
 
-def write_histos_block(fout, year, era, isData, syst_kind, jes_var, histos):
-    import ROOT
-    # normalize everything to strings
-    year_str = _norm_dir_name(year, default="YearUnknown")
-    era_str  = _norm_dir_name(era,  default=("EraUnknown" if isData else "RunII"))
-    syst_str = _norm_dir_name(syst_kind, default="Nominal")
-    jes_str  = _norm_dir_name(jes_var,    default="Nominal")
-
-    fout.cd()
-    d_year = ensure_dir(fout, year_str)
+def write_nominal_block(fout, year, isData, histos):
+    d_year = ensure_dir(fout, _norm_dir_name(year))
     d_top  = ensure_dir(d_year, "Data" if isData else "MC")
-    d_era  = ensure_dir(d_top, era_str)
-    d_syst = ensure_dir(d_era, syst_str)
+    d1     = ensure_dir(d_top, "Nominal")
+    d2     = ensure_dir(d1, "Nominal")
+    for h in histos: d2.WriteObject(h, h.GetName())
 
-    # collapse double-Nominal to a single leaf named "Nominal"
-    leaf_name = "Nominal" if syst_str == "Nominal" else jes_str
-    d_leaf = ensure_dir(d_syst, leaf_name)
+def write_jes_full_block(fout, year, isData, jes_tag, up_or_down, histos):
+    d_year = ensure_dir(fout, _norm_dir_name(year))
+    d_top  = ensure_dir(d_year, "Data" if isData else "MC")
+    d_full = ensure_dir(d_top, "ForUncertaintyJESFull")
+    leaf   = ensure_dir(d_full, f"{jes_tag}_{up_or_down}")
+    for h in histos: leaf.WriteObject(h, h.GetName())
 
-    for h in histos:
-        # keep independent of current dir, then write explicitly
-        h.SetDirectory(0)
-        d_leaf.WriteObject(h, h.GetName())
-
-    d_leaf.SaveSelf(True)  # optional flush
+def write_jes_reduced_block(fout, year, isData, jes_tag, up_or_down, histos):
+    d_year = ensure_dir(fout, _norm_dir_name(year))
+    d_top  = ensure_dir(d_year, "Data" if isData else "MC")
+    d_red  = ensure_dir(d_top, "ForUncertaintyJESReduced")
+    leaf   = ensure_dir(d_red, f"{jes_tag}_{up_or_down}")
+    for h in histos: leaf.WriteObject(h, h.GetName())
 
 
 def read_event_arrays(input_file: str, isData: bool):
@@ -710,7 +706,8 @@ def process_events(input_file: str,
                    refsAK8: CorrectionRefs,    # <-- added
                    jvm_ref,                    # <-- added (Correction or None)
                    jvm_key: Optional[str],
-                   arrs):    # <-- added
+                   arrs
+                   ):    
 
 
     printDebug(f"[Debug] Processing {syst_kind} (year={year}, isData={isData}, era={era})")
@@ -790,28 +787,28 @@ def process_events(input_file: str,
     if H["hMET_Nano"] is not None:
         fill_h1_from_array(H["hMET_Nano"], arrs["MET_pt"])
 
-    debug_event_index = None
+    print_evt = None
     if isDebug:
-        debug_event_index = _find_debug_event_index(
+        print_evt = _find_debug_event_index(
             ak4_sel_nonoverlap,
             ak8_sel,
             applyOnlyOnAK4,
             applyOnlyOnAK8,
             applyOnAK4AndAK8,
         )
-        if debug_event_index is not None:
+        if print_evt is not None:
             def _count_selected(selection) -> int:
-                if selection is None or len(selection) <= debug_event_index:
+                if selection is None or len(selection) <= print_evt:
                     return 0
                 try:
-                    return int(ak.sum(selection[debug_event_index]))
+                    return int(ak.sum(selection[print_evt]))
                 except Exception:
                     return 0
 
             num_ak4 = _count_selected(ak4_sel_nonoverlap)
             num_ak8 = _count_selected(ak8_sel)
             printDebug(
-                f"Debugging event index {debug_event_index}: selected AK4 jets = {num_ak4}, selected AK8 jets = {num_ak8}",
+                f"Debugging event index {print_evt}:selected AK8 jets = {num_ak8}, selected AK4 jets = {num_ak4}",
                 indent=2,
             )
         else:
@@ -820,85 +817,46 @@ def process_events(input_file: str,
                 indent=2,
             )
 
-    print_ak4_debug = debug_event_index is not None and (applyOnlyOnAK4 or applyOnAK4AndAK8)
-    print_ak8_debug = debug_event_index is not None and (applyOnlyOnAK8 or applyOnAK4AndAK8)
+    print_ak4_debug = print_evt is not None and (applyOnlyOnAK4 or applyOnAK4AndAK8)
+    print_ak8_debug = print_evt is not None and (applyOnlyOnAK8 or applyOnAK4AndAK8)
 
     # ---------------------------
     # JES nominal for AK4/AK8 (always applied first)
     # ---------------------------
     # AK8
     if print_ak8_debug:
-        debug_values(
-            "[AK8] NanoAOD pt sample:",
-            ak8_pt,
-            indent=4,
-            event_index=debug_event_index,
-            mask=ak8_sel,
-        )
-        debug_values(
-            "[AK8] Raw (undo rawFactor) pt sample:",
-            ak8_pt_raw,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak8_sel,
-        )
+        debug_values("[AK8] NanoAOD pt:", 
+                    ak8_pt, indent=4, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] Raw (undo rawFactor) pt:", 
+                    ak8_pt_raw, indent=6, event_index=print_evt, mask=ak8_sel)
 
     ak8_pt_corr, ak8_pt_after_l1 = jes_nominal(
         pt_raw=ak8_pt_raw, eta=ak8_eta, phi=ak8_phi, area=ak8_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK8
     )
     if print_ak8_debug:
-        debug_values(
-            "[AK8] After L1FastJet pt sample:",
-            ak8_pt_after_l1,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak8_sel,
-        )
-        debug_values(
-            "[AK8] JES nominal corrected pt sample:",
-            ak8_pt_corr,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak8_sel,
-        )
+        debug_values("[AK8] After L1FastJet pt:", 
+                    ak8_pt_after_l1, indent=6, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] JES nominal corrected pt:", 
+                    ak8_pt_corr, indent=6, event_index=print_evt, mask=ak8_sel)
 
     # AK4 (for analysis jets)
     if print_ak4_debug:
-        debug_values(
-            "[AK4] NanoAOD pt sample:",
-            ak4_pt,
-            indent=4,
-            event_index=debug_event_index,
-            mask=ak4_sel_nonoverlap,
-        )
-        debug_values(
-            "[AK4] Raw (undo rawFactor) pt sample:",
-            ak4_pt_raw,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak4_sel_nonoverlap,
-        )
+        debug_values("[AK4] NanoAOD pt:", 
+                    ak4_pt, indent=4, event_index=print_evt, mask=ak4_sel_nonoverlap)
+        debug_values("[AK4] Raw (undo rawFactor) pt:", 
+                    ak4_pt_raw, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
 
     ak4_pt_corr_nom, ak4_pt_after_l1 = jes_nominal(
         pt_raw=ak4_pt_raw, eta=ak4_eta, phi=ak4_phi, area=ak4_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK4
     )
     if print_ak4_debug:
-        debug_values(
-            "[AK4] After L1FastJet pt sample:",
-            ak4_pt_after_l1,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak4_sel_nonoverlap,
-        )
-        debug_values(
-            "[AK4] JES nominal corrected pt sample:",
-            ak4_pt_corr_nom,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak4_sel_nonoverlap,
-        )
+        debug_values("[AK4] After L1FastJet pt:", 
+                    ak4_pt_after_l1, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
+        debug_values("[AK4] JES nominal corrected pt:", 
+                    ak4_pt_corr_nom, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
+
 
     # ---------------------------
     # JES systematics (MC only) if requested
@@ -964,21 +922,11 @@ def process_events(input_file: str,
         ak4_pt_corr = ak4_pt_corr_nom  # Data: no JER
 
     if print_ak8_debug:
-        debug_values(
-            "[AK8] Final corrected pt sample:",
-            ak8_pt_corr,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak8_sel,
-        )
+        debug_values("[AK8] Final corrected pt:",
+                    ak8_pt_corr, indent=6, event_index=print_evt, mask=ak8_sel)
     if print_ak4_debug:
-        debug_values(
-            "[AK4] Final corrected pt sample:",
-            ak4_pt_corr,
-            indent=6,
-            event_index=debug_event_index,
-            mask=ak4_sel_nonoverlap,
-        )
+        debug_values( "[AK4] Final corrected pt sample:",
+                    ak4_pt_corr, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
 
     # ---------------------------
     # MET Type-1 propagation (AK4 only)
@@ -990,18 +938,17 @@ def process_events(input_file: str,
         met_raw_px = met_raw_pt * np.cos(met_raw_phi)
         met_raw_py = met_raw_pt * np.sin(met_raw_phi)
         
-        print(met_raw_pt)
-        debug_values("[MET] Raw MET pt sample:", met_raw_pt, indent=4)
-        debug_values("[MET] Raw MET phi sample:", met_raw_phi, indent=4)
-        debug_values("[MET] Nano MET_pt sample:", arrs["MET_pt"], indent=4)
+        debug_values("[MET] Nano MET_pt :", arrs["MET_pt"], indent=4, event_index=print_evt)
+        debug_values("[MET] Raw MET pt :", met_raw_pt, indent=4, event_index=print_evt)
 
+        debug_values("[MET] AK4 Jet raw pt:", ak4_pt_raw, indent=6, event_index=print_evt)
         pt_raw_mu = ak4_pt_raw * (1.0 - ak4_muSub)
-        debug_values("[MET] Jet pt after muon subtraction sample:", pt_raw_mu, indent=6)
+        debug_values("[MET] AK4 Jet raw pt after muon subtraction:", pt_raw_mu, indent=6, event_index=print_evt)
 
         # L1FastJet(area, eta, pt, rho)
         l1_corr = _eval_numeric(refsAK4.cL1, ak4_area, ak4_eta, pt_raw_mu, rho)
         pt_l1 = pt_raw_mu * l1_corr
-        debug_values("[MET] Jet pt after L1FastJet (Type-1) sample:", pt_l1, indent=8)
+        debug_values("[MET] AK4 Jet pt after L1FastJet:", pt_l1, indent=8, event_index=print_evt)
 
         # L2Relative
         if has_phi_dependent_L2(year):
@@ -1009,7 +956,7 @@ def process_events(input_file: str,
         else:
             l2_corr = _eval_numeric(refsAK4.cL2, ak4_eta, pt_l1)
         pt_tmp = pt_l1 * l2_corr
-        debug_values("[MET] Jet pt after L2Relative sample:", pt_tmp, indent=8)
+        debug_values("[MET] AK4 Jet pt after L2Relative:", pt_tmp, indent=8, event_index=print_evt)
 
         # Residuals (data only)
         if isData:
@@ -1019,7 +966,7 @@ def process_events(input_file: str,
             else:
                 res_corr = _eval_numeric(refsAK4.cL2L3Res, ak4_eta, pt_tmp)
             pt_tmp = pt_tmp * res_corr
-            debug_values("[MET] Jet pt after residual corrections sample:", pt_tmp, indent=8)
+            debug_values("[MET] AK4 Jet pt after residual corrections:", pt_tmp, indent=8, event_index=print_evt)
 
         # JES syst for MET path (MC only, only on this pass)
         if is_mc(isData) and syst_kind == "JES" and jes_ak4_tag:
@@ -1027,7 +974,7 @@ def process_events(input_file: str,
             scale = _eval_numeric(cnode, ak4_eta, pt_tmp)
             shift = (1.0 + scale) if jes_var == "Up" else (1.0 - scale)
             pt_tmp = pt_tmp * shift
-            debug_values("[MET] Jet pt after JES systematic sample:", pt_tmp, indent=8)
+            debug_values("[MET] AK4 Jet pt after JES systematic:", pt_tmp, indent=8, event_index=print_evt)
 
         # JER for MET path (MC only)
         if is_mc(isData):
@@ -1045,10 +992,10 @@ def process_events(input_file: str,
                 genIdx=gen_idx, gen_pt=gpt, gen_eta=geta, gen_phi=gphi,
                 mindr=0.2, region=jer_bin
             )
-            debug_values("[MET] Jet pt after JER smearing sample:", pt_corr_met, indent=8)
+            debug_values("[MET] AK4 Jet pt after JER smearing:", pt_corr_met, indent=8, event_index=print_evt)
         else:
             pt_corr_met = pt_tmp
-            debug_values("[MET] Jet pt for MET propagation sample:", pt_corr_met, indent=8)
+            debug_values("[MET] AK4 Jet pt for MET propagation:", pt_corr_met, indent=8, event_index=print_evt)
 
         pass_for_met = (pt_corr_met > 15.0) & (abs(ak4_eta) < 5.2) & ((ak4_chEm + ak4_neEm) < 0.9)
         dpt = ak.where(pass_for_met, pt_corr_met - pt_l1, 0.0)
@@ -1058,11 +1005,11 @@ def process_events(input_file: str,
         met_px = met_raw_px - sum_px
         met_py = met_raw_py - sum_py
         met_pt_corr = np.hypot(met_px, met_py)
-        debug_values("[MET] Type-1 corrected MET pt sample:", met_pt_corr, indent=6)
+        debug_values("[MET] Type-1 corrected MET pt:", met_pt_corr, indent=4, event_index=print_evt)
         fill_h1_from_array(H["hMET"], met_pt_corr)
     else:
         fill_h1_from_array(H["hMET"], arrs["MET_pt"])
-        debug_values("[MET] MET_pt without Type-1 corrections sample:", arrs["MET_pt"], indent=6)
+        debug_values("[MET] MET_pt without Type-1 corrections:", arrs["MET_pt"], indent=4, event_index=print_evt)
 
 
     # ---------------------------
@@ -1087,8 +1034,6 @@ def process_events(input_file: str,
         fill_h1_from_array(H["hJetPt_AK8"], ak8_pt_corr[ak8_sel])
     if applyOnlyOnAK4 or applyOnAK4AndAK8:
         fill_h1_from_array(H["hJetPt_AK4"], ak4_pt_corr[ak4_sel_nonoverlap])
-
-    write_histos_block(fout, year, era, isData, syst_kind, jes_var, list(H.values()))
 
 # ---------------------------
 # High-level driver (years & systematics)
@@ -1215,7 +1160,7 @@ def main():
         print("-----------------")
         print(f"[MC] : {year}")
         print("-----------------")
-        #process_with_nominal_and_syst(fInputMc, fout, year, isData=False)
+        process_with_nominal_and_syst(fInputMc, fout, year, isData=False)
 
     # Data
     for year, era in dataConfigs:

@@ -1430,7 +1430,7 @@ void applyJercAndJvm() {
         std::cout<<"-----------------\n";
         TChain chain("Events");
         chain.Add(fInputMc.c_str());
-        //processEventsWithNominalOrSyst(chain, fout, year, /*isData=*/false);
+        processEventsWithNominalOrSyst(chain, fout, year, /*isData=*/false);
     }
 
     for (const auto& [year, era] : dataConfigs) {
