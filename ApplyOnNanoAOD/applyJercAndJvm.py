@@ -740,8 +740,7 @@ def read_event_arrays(input_file: str, isData: bool):
 # ---------------------------
 # Event processing (columnar)
 # ---------------------------
-def process_events(input_file: str,
-                   fout: ROOT.TFile,
+def process_events(fout: ROOT.TFile,
                    year: str,
                    isData: bool,
                    era: Optional[str],
@@ -1123,7 +1122,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
 
     # 0) Nominal
     print(" [Nominal]")
-    process_events(input_file, fout, year, isData, era,
+    process_events(fout, year, isData, era,
                    syst_kind="Nominal",
                    jes_ak4_tag=None, jes_ak8_tag=None, jes_var=None,
                    jer_bin=None, jer_var=None,
@@ -1137,7 +1136,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                 for fullTag, baseName in pairs:
                     for var in ("Up","Down"):
                         print(f"\n [JES Syst]: {baseName}_{var}")
-                        process_events(input_file, fout, year, isData, era,
+                        process_events(fout, year, isData, era,
                                        syst_kind="JES",
                                        jes_ak4_tag=fullTag, jes_ak8_tag=None, jes_var=var,
                                        jer_bin=None, jer_var=None,
@@ -1148,7 +1147,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                 for fullTag, baseName in pairs:
                     for var in ("Up","Down"):
                         print(f"\n [JES Syst]: {baseName}_{var}")
-                        process_events(input_file, fout, year, isData, era,
+                        process_events(fout, year, isData, era,
                                        syst_kind="JES",
                                        jes_ak4_tag=None, jes_ak8_tag=fullTag, jes_var=var,
                                        jer_bin=None, jer_var=None,
@@ -1161,7 +1160,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
             for base in common_bases:
                 for var in ("Up","Down"):
                     print(f"\n [JES Syst]: {base}_{var}")
-                    process_events(input_file, fout, year, isData, era,
+                    process_events(fout, year, isData, era,
                                    syst_kind="JES",
                                    jes_ak4_tag=base_to_ak4[base],
                                    jes_ak8_tag=base_to_ak8[base],
@@ -1175,7 +1174,7 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
             for b in bins:
                 for var in ("up","down"):
                     print(f"\n [JER Syst]: {setName}/{b.label}_{'Up' if var=='up' else 'Down'}")
-                    process_events(input_file, fout, year, isData, era,
+                    process_events(fout, year, isData, era,
                                    syst_kind="JER",
                                    jes_ak4_tag=None, jes_ak8_tag=None, jes_var=None,
                                    jer_bin=b, jer_var=var,
