@@ -42,6 +42,7 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <chrono>
 #include <TFile.h>
 #include <TH1F.h>
 #include <TDirectory.h>
@@ -59,6 +60,11 @@ public:
         if (total_ == 0) return;
         if (current_ < total_) {
             ++current_;
+        }
+
+        if (!started_) {
+            startTime_ = Clock::now();
+            started_ = true;
         }
 
         const double fraction = static_cast<double>(current_) / static_cast<double>(total_);
@@ -82,28 +88,50 @@ public:
             oss << " - " << label;
         }
 
+        if (started_) {
+            const auto elapsed = Clock::now() - startTime_;
+            oss << " (elapsed " << formatDuration(elapsed) << ')';
+        }
+
         std::string line = oss.str();
         if (line.size() < lastLineLen_) {
             line.append(lastLineLen_ - line.size(), ' ');
         }
         lastLineLen_ = line.size();
 
-        std::cout << '\r' << line;
-        std::cout.flush();
+        std::cerr << '\r' << line;
+        std::cerr.flush();
 
         if (current_ == total_) {
-            std::cout << '\n';
-            std::cout.flush();
+            std::cerr << '\n';
+            std::cerr.flush();
             lastLineLen_ = 0;
         }
     }
 
 private:
+    using Clock = std::chrono::steady_clock;
+
+    static std::string formatDuration(const Clock::duration& duration) {
+        const auto totalSeconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
+        const auto hours = totalSeconds / 3600;
+        const auto minutes = (totalSeconds % 3600) / 60;
+        const auto seconds = totalSeconds % 60;
+
+        std::ostringstream ss;
+        ss << std::setfill('0') << std::setw(2) << hours << ':'
+           << std::setw(2) << minutes << ':'
+           << std::setw(2) << seconds;
+        return ss.str();
+    }
+
     size_t total_{};
     size_t current_{};
     size_t width_{};
     std::string prefix_;
     size_t lastLineLen_{};
+    Clock::time_point startTime_{};
+    bool started_{};
 };
 
 // Global flags to control which jet collections receive corrections.
