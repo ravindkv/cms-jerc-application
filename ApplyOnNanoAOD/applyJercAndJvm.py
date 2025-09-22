@@ -19,6 +19,21 @@ import correctionlib._core as correction
 # Only for writing histograms/dirs with familiar ROOT layout
 import ROOT
 
+try:
+    from tqdm.auto import tqdm  # type: ignore
+    _TQDM_AVAILABLE = True
+
+    def _progress_print(message: str) -> None:
+        """Print messages without breaking tqdm progress bars."""
+        tqdm.write(message)
+
+except Exception:  # pragma: no cover - fallback when tqdm is unavailable
+    tqdm = None  # type: ignore
+    _TQDM_AVAILABLE = False
+
+    def _progress_print(message: str) -> None:
+        print(message)
+
 # ---------------------------
 # Global toggles (match C++ defaults)
 # ---------------------------
@@ -1120,66 +1135,111 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
     def fresh_arrays():
         return read_event_arrays(input_file, isData)
 
-    # 0) Nominal
-    print(" [Nominal]")
-    process_events(fout, year, isData, era,
-                   syst_kind="Nominal",
-                   jes_ak4_tag=None, jes_ak8_tag=None, jes_var=None,
-                   jer_bin=None, jer_var=None,
-                   refsAK4=refsAK4, refsAK8=refsAK8,
-                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
+    tasks: List[Tuple[str, Dict[str, object]]] = []
+
+    tasks.append((
+        " [Nominal]",
+        {
+            "syst_kind": "Nominal",
+            "jes_ak4_tag": None,
+            "jes_ak8_tag": None,
+            "jes_var": None,
+            "jer_bin": None,
+            "jer_var": None,
+        },
+    ))
 
     if is_mc(isData):
         # 1) Correlated JES systematics
         if applyOnlyOnAK4:
             for setName, pairs in sAK4.items():
                 for fullTag, baseName in pairs:
-                    for var in ("Up","Down"):
-                        print(f"\n [JES Syst]: {baseName}_{var}")
-                        process_events(fout, year, isData, era,
-                                       syst_kind="JES",
-                                       jes_ak4_tag=fullTag, jes_ak8_tag=None, jes_var=var,
-                                       jer_bin=None, jer_var=None,
-                                       refsAK4=refsAK4, refsAK8=refsAK8,
-                                       jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
+                    for var in ("Up", "Down"):
+                        tasks.append((
+                            f"\n [JES Syst]: {baseName}_{var}",
+                            {
+                                "syst_kind": "JES",
+                                "jes_ak4_tag": fullTag,
+                                "jes_ak8_tag": None,
+                                "jes_var": var,
+                                "jer_bin": None,
+                                "jer_var": None,
+                            },
+                        ))
         elif applyOnlyOnAK8:
             for setName, pairs in sAK8.items():
                 for fullTag, baseName in pairs:
-                    for var in ("Up","Down"):
-                        print(f"\n [JES Syst]: {baseName}_{var}")
-                        process_events(fout, year, isData, era,
-                                       syst_kind="JES",
-                                       jes_ak4_tag=None, jes_ak8_tag=fullTag, jes_var=var,
-                                       jer_bin=None, jer_var=None,
-                                       refsAK4=refsAK4, refsAK8=refsAK8,
-                                       jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
+                    for var in ("Up", "Down"):
+                        tasks.append((
+                            f"\n [JES Syst]: {baseName}_{var}",
+                            {
+                                "syst_kind": "JES",
+                                "jes_ak4_tag": None,
+                                "jes_ak8_tag": fullTag,
+                                "jes_var": var,
+                                "jer_bin": None,
+                                "jer_var": None,
+                            },
+                        ))
         else:
             base_to_ak4 = {base: full for setName, pairs in sAK4.items() for (full, base) in pairs}
             base_to_ak8 = {base: full for setName, pairs in sAK8.items() for (full, base) in pairs}
             common_bases = sorted(set(base_to_ak4) & set(base_to_ak8))
             for base in common_bases:
-                for var in ("Up","Down"):
-                    print(f"\n [JES Syst]: {base}_{var}")
-                    process_events(fout, year, isData, era,
-                                   syst_kind="JES",
-                                   jes_ak4_tag=base_to_ak4[base],
-                                   jes_ak8_tag=base_to_ak8[base],
-                                   jes_var=var,
-                                   jer_bin=None, jer_var=None,
-                                   refsAK4=refsAK4, refsAK8=refsAK8,
-                                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
+                for var in ("Up", "Down"):
+                    tasks.append((
+                        f"\n [JES Syst]: {base}_{var}",
+                        {
+                            "syst_kind": "JES",
+                            "jes_ak4_tag": base_to_ak4[base],
+                            "jes_ak8_tag": base_to_ak8[base],
+                            "jes_var": var,
+                            "jer_bin": None,
+                            "jer_var": None,
+                        },
+                    ))
 
         # 2) JER systematics (region-gated up/down)
         for setName, bins in jerSets.items():
             for b in bins:
-                for var in ("up","down"):
-                    print(f"\n [JER Syst]: {setName}/{b.label}_{'Up' if var=='up' else 'Down'}")
-                    process_events(fout, year, isData, era,
-                                   syst_kind="JER",
-                                   jes_ak4_tag=None, jes_ak8_tag=None, jes_var=None,
-                                   jer_bin=b, jer_var=var,
-                                   refsAK4=refsAK4, refsAK8=refsAK8,
-                                   jvm_ref=jvm_ref, jvm_key=jvm_key, arrs=fresh_arrays())
+                for var in ("up", "down"):
+                    tasks.append((
+                        f"\n [JER Syst]: {setName}/{b.label}_{'Up' if var == 'up' else 'Down'}",
+                        {
+                            "syst_kind": "JER",
+                            "jes_ak4_tag": None,
+                            "jes_ak8_tag": None,
+                            "jes_var": None,
+                            "jer_bin": b,
+                            "jer_var": var,
+                        },
+                    ))
+
+    desc_parts = ["Data" if isData else "MC", year]
+    if isData and era:
+        desc_parts.append(era)
+    progress_desc = " | ".join(desc_parts)
+    progress = tqdm(total=len(tasks), desc=f"Passes {progress_desc}", unit="pass") if _TQDM_AVAILABLE else None
+
+    for label, kwargs in tasks:
+        _progress_print(str(label))
+        process_events(
+            fout=fout,
+            year=year,
+            isData=isData,
+            era=era,
+            refsAK4=refsAK4,
+            refsAK8=refsAK8,
+            jvm_ref=jvm_ref,
+            jvm_key=jvm_key,
+            arrs=fresh_arrays(),
+            **kwargs,
+        )
+        if progress is not None:
+            progress.update(1)
+
+    if progress is not None:
+        progress.close()
 
 
 
