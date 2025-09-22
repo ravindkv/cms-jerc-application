@@ -40,6 +40,8 @@
 #include <unordered_set>
 #include <optional>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 #include <TFile.h>
 #include <TH1F.h>
 #include <TDirectory.h>
@@ -47,6 +49,62 @@
 
 #include <nlohmann/json.hpp>
 #include <correction.h>
+
+class ProgressBar {
+public:
+    ProgressBar(size_t total, const std::string& prefix = "", size_t width = 40)
+        : total_(total), prefix_(prefix), width_(width) {}
+
+    void advance(const std::string& label) {
+        if (total_ == 0) return;
+        if (current_ < total_) {
+            ++current_;
+        }
+
+        const double fraction = static_cast<double>(current_) / static_cast<double>(total_);
+        size_t filled = static_cast<size_t>(fraction * static_cast<double>(width_));
+        if (filled > width_) {
+            filled = width_;
+        }
+
+        const int percent = static_cast<int>(fraction * 100.0 + 0.5);
+
+        std::ostringstream oss;
+        if (!prefix_.empty()) {
+            oss << prefix_ << ' ';
+        }
+        oss << '[';
+        for (size_t i = 0; i < width_; ++i) {
+            oss << (i < filled ? '=' : ' ');
+        }
+        oss << "] " << std::setw(3) << percent << "% (" << current_ << '/' << total_ << ')';
+        if (!label.empty()) {
+            oss << " - " << label;
+        }
+
+        std::string line = oss.str();
+        if (line.size() < lastLineLen_) {
+            line.append(lastLineLen_ - line.size(), ' ');
+        }
+        lastLineLen_ = line.size();
+
+        std::cout << '\r' << line;
+        std::cout.flush();
+
+        if (current_ == total_) {
+            std::cout << '\n';
+            std::cout.flush();
+            lastLineLen_ = 0;
+        }
+    }
+
+private:
+    size_t total_{};
+    size_t current_{};
+    size_t width_{};
+    std::string prefix_;
+    size_t lastLineLen_{};
+};
 
 // Global flags to control which jet collections receive corrections.
 // Set only one of these to true to select the desired behaviour.
@@ -1316,20 +1374,11 @@ void processEventsWithNominalOrSyst(TChain& chain,
     // JER sets (read once; we can use AK4 file as the source of binning)
     JerSetMap jerSets = getJerUncertaintySets(cfgAK4, year);
 
-    // Small helper to run one pass with a fresh NanoTree
-    auto run_pass = [&](const SystTagDetail& detail, const char* banner = nullptr) {
-        if (banner) std::cout << banner << '\n';
-        NanoTree nanoT;
-        setupNanoBranches(&chain, nanoT, isData);
-        processEvents(chain, nanoT, fout, year, isData, era, detail);
-    };
-
-    // 0) Nominal
-    run_pass(SystTagDetail{}, " [Nominal]");
+    std::vector<SystTagDetailJES> jesDetails;
+    std::vector<SystTagDetailJER> jerDetails;
+    size_t totalPasses = 1; // Nominal pass is always run
 
     if (!isData) {
-        // 1) Correlated JES systematics
-        std::vector<SystTagDetailJES> jesDetails;
         if (applyOnlyOnAK4) {
             for (const auto& [set, pairs] : sAK4) {
                 for (const auto& p : pairs) {
@@ -1363,17 +1412,43 @@ void processEventsWithNominalOrSyst(TChain& chain,
         } else {
             jesDetails = buildSystTagDetailJES(sAK4, sAK8);
         }
+        totalPasses += jesDetails.size();
 
+        jerDetails = buildJerTagDetails(jerSets);
+        totalPasses += jerDetails.size();
+    }
+
+    std::string progressPrefix = isData ? "Data " : "MC ";
+    progressPrefix += year;
+    if (isData && era) {
+        progressPrefix += " (" + *era + ")";
+    }
+
+    ProgressBar progress(totalPasses, progressPrefix);
+
+    // Small helper to run one pass with a fresh NanoTree
+    auto run_pass = [&](const SystTagDetail& detail, const std::string& label, const char* banner = nullptr) {
+        if (banner) std::cout << banner << '\n';
+        NanoTree nanoT;
+        setupNanoBranches(&chain, nanoT, isData);
+        processEvents(chain, nanoT, fout, year, isData, era, detail);
+        progress.advance(label);
+    };
+
+    // 0) Nominal
+    run_pass(SystTagDetail{}, "Nominal", " [Nominal]");
+
+    if (!isData) {
+        // 1) Correlated JES systematics
         for (const auto& d : jesDetails) {
             std::cout << "\n [JES Syst]: " << d.systName() << '\n';
-            run_pass(d);
+            run_pass(d, std::string("JES ") + d.systName());
         }
 
         // 2) JER systematics (Up/Down) with region gating from JSON
-        auto jerDetails = buildJerTagDetails(jerSets);
         for (const auto& d : jerDetails) {
             std::cout << "\n [JER Syst]: " << d.systSetName() << "/" << d.systName() << '\n';
-            run_pass(d);
+            run_pass(d, std::string("JER ") + d.systName());
         }
     }
 }
