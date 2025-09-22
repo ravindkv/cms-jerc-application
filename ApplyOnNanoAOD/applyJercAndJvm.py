@@ -459,17 +459,20 @@ def jes_nominal(pt_raw, eta, phi, area, rho, year: str, isData: bool, runs, refs
 # ---------------------------
 # JES uncertainty shift (vectorized)
 # ---------------------------
-def jes_syst_shift(pt_nom, eta, refs_cs: correction.CorrectionSet, syst_name: str, var: str):
+def jes_syst_shift(pt_nom, eta, refs_cs: correction.CorrectionSet, syst_name: str, var: str, print_evt: int):
     """
     syst_name node returns a fractional scale; apply 1 ± scale.
     """
     syst = refs_cs[syst_name]
     scale = _eval_numeric(syst, eta, pt_nom)
+    debug_values("[Syst} Input jet pT:", pt_nom, indent=8, event_index=print_evt)
     if var == "Up":
-        return pt_nom * (1.0 + scale)
+        shift =  (1.0 + scale)
     else:
-        return pt_nom * (1.0 - scale)
+        shift =  (1.0 - scale)
 
+    debug_values("[Syst} Shifted jet pT:", shift*pt_nom, indent=8, event_index=print_evt)
+    return  shift*pt_nom
 
 # ---------------------------
 # JER smearing (vectorized; region-gated)
@@ -482,62 +485,93 @@ class JerBin:
     ptMin: float
     ptMax: float
 
+from ROOT import TRandom3
+_rng = TRandom3(0)
+
+def _eventwise_trandom3_z(runs, lumis, events, pt_in):
+    """
+    One standard-normal deviate per event using ROOT::TRandom3 with
+    seed = event + run + lumi, then broadcast to all jets in that event.
+    """
+    # jets-per-event (jagged lengths)
+    counts = ak.num(pt_in, axis=1)
+
+    # Make sure we iterate per event (1D)
+    runs_np   = ak.to_numpy(runs)
+    lumis_np  = ak.to_numpy(lumis)
+    events_np = ak.to_numpy(events)
+
+    z_per_event = []
+    for run, lumi, evt in zip(runs_np, lumis_np, events_np):
+        _rng.SetSeed(int(evt) + int(run) + int(lumi))
+        z_per_event.append(_rng.Gaus(0.0, 1.0))
+
+    # Turn into an Awkward 1D array (length = n_events)
+    z_ev = ak.Array(z_per_event)
+
+    # --- EASIEST: broadcast to jagged jet-shape directly ---
+    z, _ = ak.broadcast_arrays(z_ev, pt_in)
+    return z
+
+
+YEARS_WITH_PT = {"2022Pre", "2022Post", "2023Pre", "2023Post", "2024"}
+
+def _jer_sf(refs, year, eta, pt, cat: str):
+    if year in YEARS_WITH_PT:
+        return _eval_with_string_last(refs.cJerSF, eta, pt, cat=cat)
+    else:
+        return _eval_with_string_last(refs.cJerSF, eta, cat=cat)
+
 def jer_smear(pt_in, eta, phi, rho, year: str, refs: CorrectionRefs,
               var: str, runs, lumis, events, genIdx, gen_pt, gen_eta, gen_phi,
-              mindr: float, region: Optional[JerBin]):
+              mindr: float, region: Optional[JerBin], print_evt: int):
 
-    # Region gating for this JER variation
+    debug_values("[JER} Input jet pT:", pt_in, indent=8, event_index=print_evt)
+    # Resolution (same for all branches below)
+    reso = _eval_numeric(refs.cReso, eta, pt_in, rho)
+
+    # --- Per-jet region gating for SF ---
     if region is not None:
         aeta = abs(eta)
         in_reg = (aeta >= region.etaMin) & (aeta < region.etaMax) & \
                  (pt_in >= region.ptMin) & (pt_in < region.ptMax)
-        use_var = var if ak.any(in_reg) else "nom"
-    else:
-        use_var = var
 
-    # Resolution and SF
-    reso = _eval_numeric(refs.cReso, eta, pt_in, rho)
-    if uses_puppi_met(year):
-        sf = _eval_with_string_last(refs.cJerSF, eta, pt_in, cat=use_var)
+        sf_nom = _jer_sf(refs, year, eta, pt_in, cat="nom")
+        sf_var = _jer_sf(refs, year, eta, pt_in, cat=var)
+        sf = ak.where(in_reg, sf_var, sf_nom)
     else:
-        sf = _eval_with_string_last(refs.cJerSF, eta, cat=use_var)
+        sf = _jer_sf(refs, year, eta, pt_in, cat=var)
 
-    # Gen match (safe take)
+    # --- Gen match ---
     gpt, valid_idx = take_by_index(gen_pt,  genIdx, 0.0)
     geta, _        = take_by_index(gen_eta, genIdx, 0.0)
     gphi, _        = take_by_index(gen_phi, genIdx, 0.0)
 
-    dRmatch = np.sqrt((eta - geta) * (eta - geta) + phi_mpi_pi(phi - gphi) * phi_mpi_pi(phi - gphi))
+    dphi = phi_mpi_pi(phi - gphi)
+    dRmatch = np.sqrt((eta - geta) * (eta - geta) + dphi * dphi)
+
     is_match = valid_idx & (dRmatch < mindr) & (abs(pt_in - gpt) < 3.0 * reso * pt_in)
+    debug_values("[JER] is_match :", is_match, indent=8, event_index=print_evt)
 
-    # Matched formula
-    corr_match = np.maximum(0.0, 1.0 + (sf - 1.0) * (pt_in - gpt) / pt_in)
+    corr_match   = np.maximum(0.0, 1.0 + (sf - 1.0) * (pt_in - gpt) / pt_in)
+    debug_values("Matched JER corr :", corr_match, indent=8, event_index=print_evt)
 
-    # ---------- Deterministic Gaussian per jet (fixed seeds) ----------
-    jet_idx = ak.local_index(pt_in, axis=1)
+    # ---------- Event-wide deterministic Gaussian (match C++ reseeding) ----------
+    # C++ seed: event + run + lumiblock (same for every jet in the event)
+    # Build one z per event and broadcast to jets.
+    seed_ev = ak.values_astype(events, "uint64") \
+              + ak.values_astype(runs,   "uint64") \
+              + ak.values_astype(lumis,  "uint64")
 
-    # Broadcast event-level scalars to jet shape
-    runs_b,   _ = ak.broadcast_arrays(runs,   pt_in)
-    lumis_b,  _ = ak.broadcast_arrays(lumis,  pt_in)
-    events_b, _ = ak.broadcast_arrays(events, pt_in)
+    # Make a second seed deterministically from the first
+    seed_ev_b = seed_ev ^ np.uint64(0x9E3779B97F4A7C15)
 
-    seedA = (ak.values_astype(runs_b,  "uint64") << np.uint64(1)) \
-            ^ ak.values_astype(lumis_b, "uint64") \
-            ^ ak.values_astype(jet_idx, "uint64")
-
-    seedB = (ak.values_astype(events_b, "uint64") << np.uint64(1)) \
-            ^ ak.values_astype(jet_idx * np.uint64(1315423911), "uint64")
-
-    # Box–Muller with fixed seeds
-    z = normal_from_seeds(
-        ak.to_numpy(ak.flatten(seedA, axis=None)),
-        ak.to_numpy(ak.flatten(seedB, axis=None)),
-    )
-    # IMPORTANT: unflatten with per-event jet counts
-    z = ak.unflatten(z, ak.num(pt_in, axis=1))
-
+    z = _eventwise_trandom3_z(runs, lumis, events, pt_in)
     sigma = np.sqrt(np.maximum(sf * sf - 1.0, 0.0)) * reso
     corr_unmatch = np.maximum(0.0, 1.0 + z * sigma)
+
+    corr_unmatch = np.maximum(0.0, 1.0 + z * sigma)
+    debug_values("UnMatched JER corr :", corr_unmatch, indent=8, event_index=print_evt)
 
     corr = ak.where(is_match, corr_match, corr_unmatch)
     return pt_in * corr
@@ -677,28 +711,6 @@ def ensure_dir(parent, name):
         d = got if isinstance(got, ROOT.TDirectory) else parent.mkdir(name)
     d.cd()
     return d
-
-def write_nominal_block(fout, year, isData, histos):
-    d_year = ensure_dir(fout, _norm_dir_name(year))
-    d_top  = ensure_dir(d_year, "Data" if isData else "MC")
-    d1     = ensure_dir(d_top, "Nominal")
-    d2     = ensure_dir(d1, "Nominal")
-    for h in histos: d2.WriteObject(h, h.GetName())
-
-def write_jes_full_block(fout, year, isData, jes_tag, up_or_down, histos):
-    d_year = ensure_dir(fout, _norm_dir_name(year))
-    d_top  = ensure_dir(d_year, "Data" if isData else "MC")
-    d_full = ensure_dir(d_top, "ForUncertaintyJESFull")
-    leaf   = ensure_dir(d_full, f"{jes_tag}_{up_or_down}")
-    for h in histos: leaf.WriteObject(h, h.GetName())
-
-def write_jes_reduced_block(fout, year, isData, jes_tag, up_or_down, histos):
-    d_year = ensure_dir(fout, _norm_dir_name(year))
-    d_top  = ensure_dir(d_year, "Data" if isData else "MC")
-    d_red  = ensure_dir(d_top, "ForUncertaintyJESReduced")
-    leaf   = ensure_dir(d_red, f"{jes_tag}_{up_or_down}")
-    for h in histos: leaf.WriteObject(h, h.GetName())
-
 
 def read_event_arrays(input_file: str, isData: bool):
     with uproot.open(input_file) as fin:
@@ -865,24 +877,7 @@ def process_events(input_file: str,
     # ---------------------------
     # JES nominal for AK4/AK8 (always applied first)
     # ---------------------------
-    # AK8
-    if print_ak8_debug:
-        debug_values("[AK8] NanoAOD pt:", 
-                    ak8_pt, indent=4, event_index=print_evt, mask=ak8_sel)
-        debug_values("[AK8] Raw (undo rawFactor) pt:", 
-                    ak8_pt_raw, indent=6, event_index=print_evt, mask=ak8_sel)
-
-    ak8_pt_corr, ak8_pt_after_l1 = jes_nominal(
-        pt_raw=ak8_pt_raw, eta=ak8_eta, phi=ak8_phi, area=ak8_area, rho=rho,
-        year=year, isData=isData, runs=run, refs=refsAK8
-    )
-    if print_ak8_debug:
-        debug_values("[AK8] After L1FastJet pt:", 
-                    ak8_pt_after_l1, indent=6, event_index=print_evt, mask=ak8_sel)
-        debug_values("[AK8] JES nominal corrected pt:", 
-                    ak8_pt_corr, indent=6, event_index=print_evt, mask=ak8_sel)
-
-    # AK4 (for analysis jets)
+    # AK4 
     if print_ak4_debug:
         debug_values("[AK4] NanoAOD pt:", 
                     ak4_pt, indent=4, event_index=print_evt, mask=ak4_sel_nonoverlap)
@@ -900,14 +895,31 @@ def process_events(input_file: str,
                     ak4_pt_corr_nom, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
 
 
+    # AK8
+    if print_ak8_debug:
+        debug_values("[AK8] NanoAOD pt:", 
+                    ak8_pt, indent=4, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] Raw (undo rawFactor) pt:", 
+                    ak8_pt_raw, indent=6, event_index=print_evt, mask=ak8_sel)
+
+    ak8_pt_corr, ak8_pt_after_l1 = jes_nominal(
+        pt_raw=ak8_pt_raw, eta=ak8_eta, phi=ak8_phi, area=ak8_area, rho=rho,
+        year=year, isData=isData, runs=run, refs=refsAK8
+    )
+    if print_ak8_debug:
+        debug_values("[AK8] After L1FastJet pt:", 
+                    ak8_pt_after_l1, indent=6, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] JES nominal corrected pt:", 
+                    ak8_pt_corr, indent=6, event_index=print_evt, mask=ak8_sel)
+
     # ---------------------------
     # JES systematics (MC only) if requested
     # ---------------------------
     if is_mc(isData) and syst_kind == "JES":
         if (applyOnlyOnAK4 or applyOnAK4AndAK8) and jes_ak4_tag:
-            ak4_pt_corr_nom = jes_syst_shift(ak4_pt_corr_nom, ak4_eta, refsAK4.cs, jes_ak4_tag, jes_var)
+            ak4_pt_corr_nom = jes_syst_shift(ak4_pt_corr_nom, ak4_eta, refsAK4.cs, jes_ak4_tag, jes_var, print_evt)
         if (applyOnlyOnAK8 or applyOnAK4AndAK8) and jes_ak8_tag:
-            ak8_pt_corr = jes_syst_shift(ak8_pt_corr, ak8_eta, refsAK8.cs, jes_ak8_tag, jes_var)
+            ak8_pt_corr = jes_syst_shift(ak8_pt_corr, ak8_eta, refsAK8.cs, jes_ak8_tag, jes_var, print_evt)
 
     # ---------------------------
     # JER (MC only): nominal or region-gated up/down
@@ -946,7 +958,7 @@ def process_events(input_file: str,
                 pt_in=ak4_pt_corr_nom, eta=ak4_eta, phi=ak4_phi, rho=rho, year=year, refs=refsAK4,
                 var=jer_var_eff, runs=run, lumis=lumi, events=evt,
                 genIdx=jet_gen_idx, gen_pt=gen_pt, gen_eta=gen_eta, gen_phi=gen_phi,
-                mindr=0.2, region=jer_bin
+                mindr=0.2, region=jer_bin, print_evt=print_evt
             )
         else:
             ak4_pt_corr = ak4_pt_corr_nom
@@ -957,18 +969,19 @@ def process_events(input_file: str,
                 pt_in=ak8_pt_corr, eta=ak8_eta, phi=ak8_phi, rho=rho, year=year, refs=refsAK8,
                 var=jer_var_eff, runs=run, lumis=lumi, events=evt,
                 genIdx=fat_gen_idx, gen_pt=gen8_pt, gen_eta=gen8_eta, gen_phi=gen8_phi,
-                mindr=0.4, region=jer_bin
+                mindr=0.4, region=jer_bin, print_evt=print_evt
             )
 
     else:
         ak4_pt_corr = ak4_pt_corr_nom  # Data: no JER
 
-    if print_ak8_debug:
-        debug_values("[AK8] Final corrected pt:",
-                    ak8_pt_corr, indent=6, event_index=print_evt, mask=ak8_sel)
     if print_ak4_debug:
-        debug_values( "[AK4] Final corrected pt sample:",
-                    ak4_pt_corr, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
+        debug_values( "[AK4] Final (JER) corrected pt sample:",
+                    ak4_pt_corr, indent=4, event_index=print_evt, mask=ak4_sel_nonoverlap)
+
+    if print_ak8_debug:
+        debug_values("[AK8] Final (JER) corrected pt:",
+                    ak8_pt_corr, indent=4, event_index=print_evt, mask=ak8_sel)
 
     # ---------------------------
     # MET Type-1 propagation (AK4 only)
@@ -1032,7 +1045,7 @@ def process_events(input_file: str,
                 pt_in=pt_tmp, eta=ak4_eta, phi=ak4_phi, rho=rho, year=year, refs=refsAK4,
                 var=jer_var_eff, runs=run, lumis=lumi, events=evt,
                 genIdx=gen_idx, gen_pt=gpt, gen_eta=geta, gen_phi=gphi,
-                mindr=0.2, region=jer_bin
+                mindr=0.2, region=jer_bin, print_evt=print_evt
             )
             debug_values("[MET] AK4 Jet pt after JER smearing:", pt_corr_met, indent=8, event_index=print_evt)
         else:

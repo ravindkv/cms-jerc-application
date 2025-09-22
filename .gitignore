@@ -1,2 +1,3 @@
 ApplyOnNanoAOD/output*.root
 ApplyOnNanoAOD/*.pdf
+ApplyOnNanoAOD/*.log

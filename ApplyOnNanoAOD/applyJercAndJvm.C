@@ -556,8 +556,8 @@ void applyJERNominalOrShift(NanoTree& nanoT,
         const int genIdx = Specs::getGenIdx(nanoT, idx);
         bool isMatch = false;
         if (Specs::isValidGenIdx(nanoT, genIdx)) {
-            const double dR = deltaR(phiJet, Specs::getGenPhi(nanoT, genIdx),
-                                     etaJet, Specs::getGenEta(nanoT, genIdx));
+            const double dR = deltaR(etaJet, phiJet, Specs::getGenEta(nanoT, genIdx),
+                         Specs::getGenPhi(nanoT, genIdx));
             if (dR < Specs::MINDR &&
                 std::abs(ptJet - Specs::getGenPt(nanoT, genIdx)) < 3.0 * reso * ptJet) {
                 isMatch = true;
@@ -567,9 +567,11 @@ void applyJERNominalOrShift(NanoTree& nanoT,
         double corr = 1.0;
         if (isMatch) {
             corr = std::max(0.0, 1.0 + (sf - 1.0) * (ptJet - Specs::getGenPt(nanoT, genIdx)) / ptJet);
+            printDebug(print, spaces4, "Matched: JER corr =", corr); 
         } else {
             corr = std::max(0.0, 1.0 + refs.randomGen.Gaus(0.0, reso) *
                                      std::sqrt(std::max(sf*sf - 1.0, 0.0)));
+            printDebug(print, spaces4, "UnMatched: JER corr =", corr); 
         }
         printDebug(print, spaces4, "[Jet] index=", idx, 
                                           ", eta= ", Specs::getEta(nanoT,idx),
@@ -898,8 +900,8 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
             const int genIdx = nanoT.Jet_genJetIdx[idx];
             bool isMatch = false;
             if(genIdx > -1 && static_cast<UInt_t>(genIdx) < nanoT.nGenJet){
-                const double dR = deltaR(phi, nanoT.GenJet_phi[genIdx],
-                                         eta, nanoT.GenJet_eta[genIdx]);
+                const double dR = deltaR(eta, phi, 
+                                        nanoT.GenJet_eta[genIdx], nanoT.GenJet_phi[genIdx]);
                 if(dR < AK4Specs::MINDR &&
                    std::abs(pt_corr - nanoT.GenJet_pt[genIdx]) < 3.0 * reso * pt_corr){
                     isMatch = true;

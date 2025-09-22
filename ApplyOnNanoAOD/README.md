@@ -2,9 +2,9 @@
 ### Apply On NanoAOD
 
 The main demonstration is the ROOT macro `applyJercAndJvm.C` which runs entirely in C++ using `correctionlib`. A python version is also provided.
-* `root -b -q applyJercAndJvm.C`
+* `root -b -q applyJercAndJvm.C > output_C.log`
 or
-* `python applyJercAndJvm.py`
+* `python applyJercAndJvm.py > output_Py.log`
 
 Inspect the print log on the terminal and the output.root file
 
