@@ -683,13 +683,16 @@ def fill_h1_from_array(h: ROOT.TH1F, arr):
     if h is None:
         return
     flat = ak.to_numpy(ak.flatten(arr, axis=None))
+    n_entries = float(flat.size)
     if flat.size == 0:
+        h.SetEntries(n_entries)
         return
     counts, edges = np.histogram(flat, bins=h.GetNbinsX(),
                                  range=(h.GetXaxis().GetXmin(), h.GetXaxis().GetXmax()))
     for i in range(1, h.GetNbinsX() + 1):
         h.SetBinContent(i, counts[i - 1])
         h.SetBinError(i, math.sqrt(counts[i - 1]))
+    h.SetEntries(n_entries)
 
 def _norm_dir_name(x, default="Nominal"):
     # treat None, "", "None" as default; always return a plain str
