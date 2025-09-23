@@ -43,6 +43,12 @@
 #include <iomanip>
 #include <sstream>
 #include <chrono>
+#include <cstdio>
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include <TFile.h>
 #include <TH1F.h>
 #include <TDirectory.h>
@@ -54,7 +60,13 @@
 class ProgressBar {
 public:
     ProgressBar(size_t total, const std::string& prefix = "", size_t width = 40)
-        : total_(total), prefix_(prefix), width_(width) {}
+        : total_(total), prefix_(prefix), width_(width) {
+#if defined(_WIN32)
+        isTerminal_ = _isatty(_fileno(stderr));
+#else
+        isTerminal_ = ::isatty(fileno(stderr));
+#endif
+    }
 
     void advance(const std::string& label) {
         if (total_ == 0) return;
@@ -99,6 +111,14 @@ public:
         }
         lastLineLen_ = line.size();
 
+        if (!isTerminal_) {
+            if (current_ == total_) {
+                std::cerr << line << '\n';
+                std::cerr.flush();
+            }
+            return;
+        }
+
         std::cerr << '\r' << line;
         std::cerr.flush();
 
@@ -132,6 +152,7 @@ private:
     size_t lastLineLen_{};
     Clock::time_point startTime_{};
     bool started_{};
+    bool isTerminal_{true};
 };
 
 // Global flags to control which jet collections receive corrections.
