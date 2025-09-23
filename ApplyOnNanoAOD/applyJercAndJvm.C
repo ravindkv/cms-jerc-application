@@ -19,7 +19,7 @@
  * The entry point is the function `applyJercAndJvm()` defined at the end
  * of this file which configures the years and input files to process.
  */
-//applyJercAndJvm.C
+// Implementation details for applyJercAndJvm.C
 
 #if defined(__CLING__)
 #pragma cling add_include_path("$HOME/.local/lib/python3.9/site-packages/correctionlib/include")
@@ -156,11 +156,11 @@ private:
 };
 
 // Global flags to control which jet collections receive corrections.
-// Set only one of these to true to select the desired behaviour.
+// Set exactly one of these flags to true to choose the target collection mix.
 bool applyOnlyOnAK4 = false;
 bool applyOnlyOnAK8 = false;
 bool applyOnAK4AndAK8 = true;
-// Control whether jet energy corrections are propagated to MET
+// Control whether jet energy corrections are propagated to MET.
 bool applyOnMET = true;
 
 // ---------------------------
@@ -253,7 +253,7 @@ void setupNanoBranches(TChain* chain, NanoTree& nanoT, bool isData) {
     chain->SetBranchAddress("FatJet_rawFactor", &nanoT.FatJet_rawFactor);
     chain->SetBranchAddress("FatJet_area", &nanoT.FatJet_area);
     chain->SetBranchAddress("FatJet_jetId", &nanoT.FatJet_jetId);
-    if(!isData){//Only for MC (these branches are used in JER smearing)
+    if(!isData){// Only for MC samples; these branches are required for JER smearing.
         chain->SetBranchAddress("Jet_genJetIdx", &nanoT.Jet_genJetIdx);
         chain->SetBranchAddress("FatJet_genJetAK8Idx", &nanoT.FatJet_genJetAK8Idx);
         chain->SetBranchAddress("nGenJet", &nanoT.nGenJet);
@@ -523,9 +523,9 @@ void printDebug(bool enable, int indent, const Args&... args) {
 }
 
 //--------------------------------------------------
-// Nominal JES Correction 
+// Nominal JES Correction
 //--------------------------------------------------
-//A single templated nominal corrections, generic over Specs (AK4Specs or AK8Specs)
+// Single templated nominal correction routine shared by both jet specifications.
 /**
  * Apply the nominal jet energy corrections (undo raw factors, apply L1, L2 and
  * optionally the residual step for data) to a set of jet indices.
@@ -555,12 +555,12 @@ void applyJESNominal(NanoTree& nanoT,
                                           );
         printDebug(print, spaces6, "default NanoAod  Pt=", Specs::getPt(nanoT,idx));
 
-        // Raw pT (undo the default JES correction applied in NanoAOD)
+        // Raw pT: undo the default JES correction applied in NanoAOD.
         double rawSF = 1.0 - Specs::getRawFactor(nanoT, idx);
         Specs::applyCorrection(nanoT, idx, rawSF);
         printDebug(print, spaces6, "after undoing    Pt=", Specs::getPt(nanoT,idx));
 
-        // L1FastJet (aka Pileup correction)
+        // L1FastJet (pileup correction).
         double c1 = refs.corrRefJesL1FastJet->evaluate({ Specs::getArea(nanoT,idx),
                                             Specs::getEta(nanoT,idx),
                                             Specs::getPt(nanoT,idx),
@@ -568,7 +568,7 @@ void applyJESNominal(NanoTree& nanoT,
         Specs::applyCorrection(nanoT, idx, c1);
         printDebug(print, spaces6, "after L1FastJet  Pt=", Specs::getPt(nanoT,idx));
 
-        // L2Relative (aka MCTruth correction)
+        // L2Relative (MC truth correction).
         double c2 = 1.0;
         if(hasPhiDependentL2(year)){
             c2 = refs.corrRefJesL2Relative->evaluate({ Specs::getEta(nanoT,idx),
@@ -581,8 +581,8 @@ void applyJESNominal(NanoTree& nanoT,
         Specs::applyCorrection(nanoT, idx, c2);
         printDebug(print, spaces6, "after L2Relative Pt=", Specs::getPt(nanoT,idx));
 
-        //L2L3Residual (L2Residual + L3Residual together) on data only 
-        //(to cover residual differences between Data/MC)
+        // L2L3Residual (L2Residual + L3Residual together) applied only to data.
+        // (Covers residual differences between data and simulation.)
         if(isData){
           double cR = 1.0;
           if(requiresRunBasedResidual(year)){
@@ -911,10 +911,9 @@ void applySystShiftJES(NanoTree& nanoT,
     }
 }
 
-// Propagate the effect of jet corrections to MET using the stored raw jet pT
-// for a single jet collection.  The JES and JER are applied starting from the
-// raw (muon-subtracted) jet pT and the difference with respect to the L1
-// corrected value is propagated to MET.
+// Propagate the effect of jet corrections to MET using the stored raw jet pT.
+// The JES and JER are applied starting from the muon-subtracted raw jet pT and
+// the difference with respect to the L1 corrected value is propagated to MET.
 TLorentzVector getCorrectedMet(NanoTree& nanoT,
                        std::string year,
                        CorrectionRefs& refs,
@@ -944,16 +943,16 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
         const double eta  = nanoT.Jet_eta[idx];
         const double area = nanoT.Jet_area[idx];
 
-        // Recompute corrections on muon-subtracted raw jet pT
+        // Recompute corrections on muon-subtracted raw jet pT.
         const double pt_raw_minusMuon = rawPts[idx] * (1 - nanoT.Jet_muonSubtrFactor[idx]);
         double pt_corr   = pt_raw_minusMuon;
-        // L1FastJet (aka Pileup correction)
+        // L1FastJet (pileup correction).
         double c1 = refs.corrRefJesL1FastJet->evaluate({area, eta, pt_corr, nanoT.Rho});
         pt_corr   *= c1;
-        // catch L1Rc pT right after L1Rc step
+        // Record the pT immediately after the L1 step.
         double pt_corr_l1rc = pt_corr;
 
-        // L2Relative (aka MCTruth correction)
+        // L2Relative (MC truth correction).
         double c2 = 1.0;
         if(hasPhiDependentL2(year)){
             c2 = refs.corrRefJesL2Relative->evaluate({ eta, phi, pt_corr });
@@ -962,8 +961,8 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
         }
         pt_corr   *= c2;
 
-        // L2L3Residual (L2Residual + L3Residual together) on data only
-        //(to cover residual differences between Data/MC)
+        // L2L3Residual (L2Residual + L3Residual together) applied only to data.
+        // (Covers residual differences between data and simulation.)
         if(isData){
           double cR = 1.0;
           if(requiresRunBasedResidual(year)){
@@ -975,7 +974,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
           pt_corr   *= cR;
         }
 
-        // JES systematic shift if requested (MC only)
+        // JES systematic shift if requested (MC only).
         if(!isData && !jesSystName.empty()){
             auto systCorr = safeGet(refs.cs, jesSystName);
             double scale = systCorr->evaluate({ eta, pt_corr });
@@ -983,7 +982,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
             pt_corr *= shift;
         }
 
-        // JER smearing (MC only)
+        // JER smearing (MC only).
         if(!isData){
             std::string useVar = jerVar;
             if(jerRegion.has_value()){
@@ -1026,7 +1025,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
             pt_corr *= corr;
         }
 
-        // selection for propagation
+        // Selection used when propagating to MET.
         const bool passSel = (pt_corr > 15.0
                              && std::abs(eta) < 5.2
                              && (nanoT.Jet_chEmEF[idx] + nanoT.Jet_neEmEF[idx]) < 0.9
@@ -1039,7 +1038,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
         met_px -= dpt * std::cos(phi);
         met_py -= dpt * std::sin(phi);
     }
-    // finalize MET
+    // Finalise MET.
     const double met_pt  = std::hypot(met_px, met_py);
     const double met_phi = std::atan2(met_py, met_px);
     printDebug(print, spaces3, "[Met] Type-1 corrected Pt =", met_pt);
@@ -1061,22 +1060,21 @@ bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::s
     const double maxPhiInMap = 3.1415926;
     bool vetoEvent = false;
     for (int i = 0; i != nanoT.nJet; ++i) {
-        //apply minimal selection jets
+        // Apply a minimal jet selection.
         if (std::abs(nanoT.Jet_eta[i]) > maxEtaInMap) continue;
         if (std::abs(nanoT.Jet_phi[i]) > maxPhiInMap) continue;
-        if (nanoT.Jet_jetId[i] < 6 ) continue;//TightLepVeto ID
+        if (nanoT.Jet_jetId[i] < 6 ) continue;// TightLepVeto ID.
         if (nanoT.Jet_pt[i] < 15) continue;
         if ((nanoT.Jet_chEmEF[i] + nanoT.Jet_neEmEF[i]) > 0.9) continue;
 
-        // Now check if the jet is in the veto region
+        // Check whether the jet lies inside the veto region.
         auto jvmNumber = jvmRef->evaluate({jvmKeyName, nanoT.Jet_eta[i], nanoT.Jet_phi[i]});
-        // the jvmNumber will be either zero (0.0) or non-zero (100.0).
-        // Non-zero means the jet is in the veto region
+        // The correction returns 0.0 outside the veto region and 100.0 inside it.
         if (jvmNumber > 0.0) {
             vetoEvent = true;
-            break; // no need to loop over remaining jets
+            break; // No need to loop over the remaining jets.
         }
-    }//nJet loop
+    }// nJet loop
 
     return vetoEvent;
 }
@@ -1259,7 +1257,7 @@ static void processEvents(TChain& chain,
         fillHist(H.hMET_Nano, nanoT.MET_pt);
 
         if(applyOnlyOnAK4 || applyOnlyOnAK8) applyOnAK4AndAK8 = false;
-        // --- select jet indices using helper functions
+        // --- Select jet indices using helper functions.
         std::vector<UInt_t> indicesAK8;
         if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
             indicesAK8 = collectAK8Jets(nanoT, H.hJetPt_AK8_Nano);
@@ -1269,7 +1267,7 @@ static void processEvents(TChain& chain,
             indicesAK4 = collectNonOverlappingAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
         }
 
-        // store raw jet pT for MET propagation (AK4 only is propagated to MET)
+        // Store raw AK4 jet pT values for MET propagation (only AK4 contributes to MET).
         std::vector<double> rawPtsAK4ForMet;
         std::vector<UInt_t> indicesAK4ForMet;
         rawPtsAK4ForMet.reserve(nanoT.nJet);
@@ -1292,10 +1290,10 @@ static void processEvents(TChain& chain,
         }
 
         // =========================
-        // 1) JES (nominal) — NO JER inside
+        // 1) JES (nominal) — apply only the nominal JES.
         // =========================
         if (systTagDetail.isNominal()) {
-            // In the nominal pass print the full per-jet breakdown
+            // In the nominal pass print the full per-jet breakdown.
             if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
                 printDebug(print, spaces3, "AK4 (JES nominal) on "+std::to_string(indicesAK4.size())+" jets");
                 applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, print);
@@ -1319,7 +1317,7 @@ static void processEvents(TChain& chain,
         }
 
         // =========================
-        // 2) JES Uncertainty (MC only), if this pass is JES
+        // 2) JES uncertainty (MC only) when running a JES systematic pass.
         // =========================
         if (!isData && systTagDetail.kind == SystKind::JES) {
             const auto& jesDetail = static_cast<const SystTagDetailJES&>(systTagDetail);
@@ -1334,7 +1332,7 @@ static void processEvents(TChain& chain,
             }
         }
 
-        // Determine which JES/JER variations need to be propagated to MET
+        // Determine which JES/JER variations need to be propagated to MET.
         std::string jerVar = "nom";
         std::optional<JerBin> jerRegion;
         std::string jesSystName;
@@ -1352,7 +1350,7 @@ static void processEvents(TChain& chain,
         }
 
         // =========================
-        // 3) JER (after all JES): apply nominal or shifted smearing (MC only)
+        // 3) JER (after all JES): apply nominal or shifted smearing for MC.
         // =========================
         if (!isData) {
             if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
@@ -1372,7 +1370,7 @@ static void processEvents(TChain& chain,
             H.hMET->Fill(p4CorrectedMET.Pt());
         }
 
-        // Fill hists
+        // Fill histograms with corrected jet pT.
         for (auto idx : indicesAK4) H.hJetPt_AK4->Fill(nanoT.Jet_pt[idx]);
         for (auto idx : indicesAK8) H.hJetPt_AK8->Fill(nanoT.FatJet_pt[idx]);
 
@@ -1380,14 +1378,14 @@ static void processEvents(TChain& chain,
 
 
         // =========================
-        // 4) Jet veto map
+        // 4) Jet veto map check.
         // =========================
         if (useJvm && checkIfAnyJetInVetoRegion(jvmRef, jvmKey, nanoT)) {
             countVeto++;
             continue;
         }
 
-        // ... further analysis ...
+        // Additional analysis steps can be inserted here.
     }//event loop
 
     std::cout<<"   \nNumber of events vetoed due to JetVetoMap: "<<countVeto<<'\n';
@@ -1475,7 +1473,7 @@ void processEventsWithNominalOrSyst(TChain& chain,
 
     ProgressBar progress(totalPasses, progressPrefix);
 
-    // Small helper to run one pass with a fresh NanoTree
+    // Small helper to run one pass with a fresh NanoTree.
     auto run_pass = [&](const SystTagDetail& detail, const std::string& label, const char* banner = nullptr) {
         if (banner) std::cout << banner << '\n';
         NanoTree nanoT;
@@ -1484,17 +1482,17 @@ void processEventsWithNominalOrSyst(TChain& chain,
         progress.advance(label);
     };
 
-    // 0) Nominal
+    // 0) Nominal pass.
     run_pass(SystTagDetail{}, "Nominal", " [Nominal]");
 
     if (!isData) {
-        // 1) Correlated JES systematics
+        // 1) Correlated JES systematics.
         for (const auto& d : jesDetails) {
             std::cout << "\n [JES Syst]: " << d.systName() << '\n';
             run_pass(d, std::string("JES ") + d.systName());
         }
 
-        // 2) JER systematics (Up/Down) with region gating from JSON
+        // 2) JER systematics (Up/Down) with region gating from JSON.
         for (const auto& d : jerDetails) {
             std::cout << "\n [JER Syst]: " << d.systSetName() << "/" << d.systName() << '\n';
             run_pass(d, std::string("JER ") + d.systName());
@@ -1512,7 +1510,7 @@ void applyJercAndJvm() {
     const std::string fInputData = "NanoAOD_Data.root";
     const std::string fInputMc   = "NanoAOD_MC.root";
 
-    // Prepare output file
+    // Prepare the output file.
     std::string outName = "output_C.root";
     TFile fout(outName.c_str(), "RECREATE");
 
