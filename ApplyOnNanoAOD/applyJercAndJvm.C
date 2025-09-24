@@ -42,7 +42,6 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
-#include <chrono>
 #include <cstdio>
 #if defined(_WIN32)
 #include <io.h>
@@ -56,104 +55,7 @@
 
 #include <nlohmann/json.hpp>
 #include <correction.h>
-
-class ProgressBar {
-public:
-    ProgressBar(size_t total, const std::string& prefix = "", size_t width = 40)
-        : total_(total), prefix_(prefix), width_(width) {
-#if defined(_WIN32)
-        isTerminal_ = _isatty(_fileno(stderr));
-#else
-        isTerminal_ = ::isatty(fileno(stderr));
-#endif
-    }
-
-    void advance(const std::string& label) {
-        if (total_ == 0) return;
-        if (current_ < total_) {
-            ++current_;
-        }
-
-        if (!started_) {
-            startTime_ = Clock::now();
-            started_ = true;
-        }
-
-        const double fraction = static_cast<double>(current_) / static_cast<double>(total_);
-        size_t filled = static_cast<size_t>(fraction * static_cast<double>(width_));
-        if (filled > width_) {
-            filled = width_;
-        }
-
-        const int percent = static_cast<int>(fraction * 100.0 + 0.5);
-
-        std::ostringstream oss;
-        if (!prefix_.empty()) {
-            oss << prefix_ << ' ';
-        }
-        oss << '[';
-        for (size_t i = 0; i < width_; ++i) {
-            oss << (i < filled ? '=' : ' ');
-        }
-        oss << "] " << std::setw(3) << percent << "% (" << current_ << '/' << total_ << ')';
-        if (!label.empty()) {
-            oss << " - " << label;
-        }
-
-        if (started_) {
-            const auto elapsed = Clock::now() - startTime_;
-            oss << " (elapsed " << formatDuration(elapsed) << ')';
-        }
-
-        std::string line = oss.str();
-        if (line.size() < lastLineLen_) {
-            line.append(lastLineLen_ - line.size(), ' ');
-        }
-        lastLineLen_ = line.size();
-
-        if (!isTerminal_) {
-            if (current_ == total_) {
-                std::cerr << line << '\n';
-                std::cerr.flush();
-            }
-            return;
-        }
-
-        std::cerr << '\r' << line;
-        std::cerr.flush();
-
-        if (current_ == total_) {
-            std::cerr << '\n';
-            std::cerr.flush();
-            lastLineLen_ = 0;
-        }
-    }
-
-private:
-    using Clock = std::chrono::steady_clock;
-
-    static std::string formatDuration(const Clock::duration& duration) {
-        const auto totalSeconds = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
-        const auto hours = totalSeconds / 3600;
-        const auto minutes = (totalSeconds % 3600) / 60;
-        const auto seconds = totalSeconds % 60;
-
-        std::ostringstream ss;
-        ss << std::setfill('0') << std::setw(2) << hours << ':'
-           << std::setw(2) << minutes << ':'
-           << std::setw(2) << seconds;
-        return ss.str();
-    }
-
-    size_t total_{};
-    size_t current_{};
-    size_t width_{};
-    std::string prefix_;
-    size_t lastLineLen_{};
-    Clock::time_point startTime_{};
-    bool started_{};
-    bool isTerminal_{true};
-};
+#include <boost/progress.hpp>
 
 // Global flags to control which jet collections receive corrections.
 // Set exactly one of these flags to true to choose the target collection mix.
@@ -1471,16 +1373,17 @@ void processEventsWithNominalOrSyst(TChain& chain,
         progressPrefix += " (" + *era + ")";
     }
 
-    ProgressBar progress(totalPasses, progressPrefix);
-
-    // Small helper to run one pass with a fresh NanoTree.
+    // Use stderr to keep logs and progress separated 
+    boost::progress_display progress(totalPasses, std::cerr);
+    std::cerr << "\n" << progressPrefix << " : finished " << totalPasses << " passes.\n";
     auto run_pass = [&](const SystTagDetail& detail, const std::string& label, const char* banner = nullptr) {
-        if (banner) std::cout << banner << '\n';
+        if (banner) std::cout << banner << '\n';  // same banner printing as before
         NanoTree nanoT;
         setupNanoBranches(&chain, nanoT, isData);
         processEvents(chain, nanoT, fout, year, isData, era, detail);
-        progress.advance(label);
+        ++progress;  // one tick per finished pass
     };
+
 
     // 0) Nominal pass.
     run_pass(SystTagDetail{}, "Nominal", " [Nominal]");
