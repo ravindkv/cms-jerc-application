@@ -37,9 +37,9 @@ except Exception:  # pragma: no cover - fallback when tqdm is unavailable
 # ---------------------------
 # Global toggles (match C++ defaults)
 # ---------------------------
-applyOnlyOnAK4 = False
+applyOnlyOnAK4 = True
 applyOnlyOnAK8 = False
-applyOnAK4AndAK8 = True
+applyOnAK4AndAK8 = False
 applyOnMET = True
 isDebug = True
 
@@ -751,6 +751,12 @@ def read_event_arrays(input_file: str, isData: bool):
             ]
         return t.arrays(branches, library="ak", how=dict)
 
+# ---------------------------
+# Helper: apply a value only on selected positions, keep original elsewhere
+# ---------------------------
+def _only_nonoverlap(sel, updated, original):
+    # sel, updated, original are jagged-with-identical layout
+    return ak.where(sel, updated, original)
 
 # ---------------------------
 # Event processing (columnar)
@@ -890,6 +896,8 @@ def process_events(
     if H["hMET_Nano"] is not None:
         fill_h1_from_array(H["hMET_Nano"], arrs["MET_pt"])
 
+    if applyOnlyOnAK4 or applyOnlyOnAK8:
+        applyOnAK4AndAK8 = False
     print_evt = None
     if isDebug:
         print_evt = _find_debug_event_index(
@@ -926,47 +934,52 @@ def process_events(
     # ---------------------------
     # JES nominal for AK4/AK8 (always applied first)
     # ---------------------------
-    # AK4 
-    if print_ak4_debug:
-        debug_values("[AK4] NanoAOD pt:", 
-                    ak4_pt, indent=4, event_index=print_evt, mask=ak4_sel_nonoverlap)
-        debug_values("[AK4] Raw (undo rawFactor) pt:", 
-                    ak4_pt_raw, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
 
-    ak4_pt_corr_nom, ak4_pt_after_l1 = jes_nominal(
+    # --- AK4: compute on all, commit only on non-overlapping
+    if print_ak4_debug:
+        debug_values("[AK4] NanoAOD pt:", ak4_pt, indent=4, event_index=print_evt, mask=ak4_sel_nonoverlap)
+        debug_values("[AK4] Raw (undo rawFactor) pt:", ak4_pt_raw, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
+
+    # Compute for all AK4 (shape-stable)
+    ak4_pt_corr_nom_all, ak4_pt_after_l1_all = jes_nominal(
         pt_raw=ak4_pt_raw, eta=ak4_eta, phi=ak4_phi, area=ak4_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK4
     )
+
+    # Commit only for non-overlapping AK4; overlapped keep original Nano pt (or choose ak4_pt_raw if you prefer)
+    ak4_pt_after_l1 = _only_nonoverlap(ak4_sel_nonoverlap, ak4_pt_after_l1_all, ak4_pt_raw)
+    ak4_pt_corr_nom = _only_nonoverlap(ak4_sel_nonoverlap, ak4_pt_corr_nom_all, ak4_pt)
+
     if print_ak4_debug:
-        debug_values("[AK4] After L1FastJet pt:", 
-                    ak4_pt_after_l1, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
-        debug_values("[AK4] JES nominal corrected pt:", 
-                    ak4_pt_corr_nom, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
+        debug_values("[AK4] After L1FastJet pt (non-overlap only):",
+                     ak4_pt_after_l1, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
+        debug_values("[AK4] JES nominal corrected pt (non-overlap only):",
+                     ak4_pt_corr_nom, indent=6, event_index=print_evt, mask=ak4_sel_nonoverlap)
 
-
-    # AK8
+    # --- AK8: unchanged
     if print_ak8_debug:
-        debug_values("[AK8] NanoAOD pt:", 
-                    ak8_pt, indent=4, event_index=print_evt, mask=ak8_sel)
-        debug_values("[AK8] Raw (undo rawFactor) pt:", 
-                    ak8_pt_raw, indent=6, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] NanoAOD pt:", ak8_pt, indent=4, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] Raw (undo rawFactor) pt:", ak8_pt_raw, indent=6, event_index=print_evt, mask=ak8_sel)
 
     ak8_pt_corr, ak8_pt_after_l1 = jes_nominal(
         pt_raw=ak8_pt_raw, eta=ak8_eta, phi=ak8_phi, area=ak8_area, rho=rho,
         year=year, isData=isData, runs=run, refs=refsAK8
     )
     if print_ak8_debug:
-        debug_values("[AK8] After L1FastJet pt:", 
-                    ak8_pt_after_l1, indent=6, event_index=print_evt, mask=ak8_sel)
-        debug_values("[AK8] JES nominal corrected pt:", 
-                    ak8_pt_corr, indent=6, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] After L1FastJet pt:", ak8_pt_after_l1, indent=6, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] JES nominal corrected pt:", ak8_pt_corr, indent=6, event_index=print_evt, mask=ak8_sel)
 
     # ---------------------------
     # JES systematics (MC only) if requested
     # ---------------------------
     if is_mc(isData) and syst_kind == "JES":
+        # Shift full arrays, then commit only on non-overlap for AK4
         if (applyOnlyOnAK4 or applyOnAK4AndAK8) and jes_ak4_tag:
-            ak4_pt_corr_nom = jes_syst_shift(ak4_pt_corr_nom, ak4_eta, refsAK4.cs, jes_ak4_tag, jes_var, print_evt)
+            ak4_pt_corr_nom_all = jes_syst_shift(
+                ak4_pt_corr_nom_all, ak4_eta, refsAK4.cs, jes_ak4_tag, jes_var, print_evt
+            )
+            ak4_pt_corr_nom = _only_nonoverlap(ak4_sel_nonoverlap, ak4_pt_corr_nom_all, ak4_pt)
+
         if (applyOnlyOnAK8 or applyOnAK4AndAK8) and jes_ak8_tag:
             ak8_pt_corr = jes_syst_shift(ak8_pt_corr, ak8_eta, refsAK8.cs, jes_ak8_tag, jes_var, print_evt)
 
@@ -974,45 +987,33 @@ def process_events(
     # JER (MC only): nominal or region-gated up/down
     # ---------------------------
     if is_mc(isData):
-        if "Jet_genJetIdx" in arrs:
-            jet_gen_idx = arrs["Jet_genJetIdx"]
-            gen_pt = arrs["GenJet_pt"]
-            gen_eta = arrs["GenJet_eta"]
-            gen_phi = arrs["GenJet_phi"]
-        else:
-            jet_gen_idx = ak.zeros_like(ak4_pt, dtype=np.int32) - 1
-            gen_pt = ak.Array([[]]) * 0.0
-            gen_eta = gen_pt
-            gen_phi = gen_pt
-        if "FatJet_genJetAK8Idx" in arrs:
-            fat_gen_idx = arrs["FatJet_genJetAK8Idx"]
-            gen8_pt = arrs["GenJetAK8_pt"]
-            gen8_eta = arrs["GenJetAK8_eta"]
-            gen8_phi = arrs["GenJetAK8_phi"]
-        else:
-            fat_gen_idx = ak.zeros_like(ak8_pt, dtype=np.int32) - 1
-            gen8_pt = ak.Array([[]]) * 0.0
-            gen8_eta = gen8_pt
-            gen8_phi = gen8_pt
+        jet_gen_idx = arrs["Jet_genJetIdx"]
+        gen_pt  = arrs["GenJet_pt"]
+        gen_eta = arrs["GenJet_eta"]
+        gen_phi = arrs["GenJet_phi"]
 
-        # Determine which variation for JER step
-        if syst_kind == "JER":
-            jer_var_eff = jer_var  # "up"/"down"
-        else:
-            jer_var_eff = "nom"
+        fat_gen_idx = arrs["FatJet_genJetAK8Idx"]
+        gen8_pt  = arrs["GenJetAK8_pt"]
+        gen8_eta = arrs["GenJetAK8_eta"]
+        gen8_phi = arrs["GenJetAK8_phi"]
 
-        # AK4 JER
+        jer_var_eff = jer_var if syst_kind == "JER" else "nom"
+
+        # --- AK4: smear full array, then commit only on non-overlap
         if (applyOnlyOnAK4 or applyOnAK4AndAK8):
-            ak4_pt_corr = jer_smear(
-                pt_in=ak4_pt_corr_nom, eta=ak4_eta, phi=ak4_phi, rho=rho, year=year, refs=refsAK4,
+            ak4_pt_corr_all = jer_smear(
+                pt_in=ak4_pt_corr_nom_all, eta=ak4_eta, phi=ak4_phi, rho=rho, year=year, refs=refsAK4,
                 var=jer_var_eff, runs=run, lumis=lumi, events=evt,
                 genIdx=jet_gen_idx, gen_pt=gen_pt, gen_eta=gen_eta, gen_phi=gen_phi,
                 mindr=0.2, region=jer_bin, print_evt=print_evt
             )
         else:
-            ak4_pt_corr = ak4_pt_corr_nom
+            ak4_pt_corr_all = ak4_pt_corr_nom_all
 
-        # AK8 JER
+        # Commit only for non-overlap; overlapped keep original Nano pt
+        ak4_pt_corr = _only_nonoverlap(ak4_sel_nonoverlap, ak4_pt_corr_all, ak4_pt)
+
+        # --- AK8 unchanged
         if (applyOnlyOnAK8 or applyOnAK4AndAK8):
             ak8_pt_corr = jer_smear(
                 pt_in=ak8_pt_corr, eta=ak8_eta, phi=ak8_phi, rho=rho, year=year, refs=refsAK8,
@@ -1020,17 +1021,17 @@ def process_events(
                 genIdx=fat_gen_idx, gen_pt=gen8_pt, gen_eta=gen8_eta, gen_phi=gen8_phi,
                 mindr=0.4, region=jer_bin, print_evt=print_evt
             )
-
     else:
-        ak4_pt_corr = ak4_pt_corr_nom  # Data: no JER
+        # Data: no JER; still enforce non-overlap commit policy
+        ak4_pt_corr = _only_nonoverlap(ak4_sel_nonoverlap, ak4_pt_corr_nom_all, ak4_pt)
 
+    # Debug prints (unchanged masks)
     if print_ak4_debug:
-        debug_values( "[AK4] Final (JER) corrected pt sample:",
-                    ak4_pt_corr, indent=4, event_index=print_evt, mask=ak4_sel_nonoverlap)
-
+        debug_values("[AK4] Final (JER) corrected pt sample (non-overlap only):",
+                     ak4_pt_corr, indent=4, event_index=print_evt, mask=ak4_sel_nonoverlap)
     if print_ak8_debug:
-        debug_values("[AK8] Final (JER) corrected pt:",
-                    ak8_pt_corr, indent=4, event_index=print_evt, mask=ak8_sel)
+        debug_values("[AK8] Final (JER) corrected pt:", ak8_pt_corr, indent=4, event_index=print_evt, mask=ak8_sel)
+
 
     # ---------------------------
     # MET Type-1 propagation (AK4 only)
@@ -1112,7 +1113,6 @@ def process_events(
         debug_values("[MET] Type-1 corrected MET pt:", met_pt_corr, indent=4, event_index=print_evt)
         fill_h1_from_array(H["hMET"], met_pt_corr)
     else:
-        fill_h1_from_array(H["hMET"], arrs["MET_pt"])
         debug_values("[MET] MET_pt without Type-1 corrections:", arrs["MET_pt"], indent=4, event_index=print_evt)
 
 
@@ -1345,9 +1345,5 @@ def main():
     print(f"Wrote output to {outName}")
 
 if __name__ == "__main__":
-    # Respect the same AK4/AK8 toggles as the C++ macro
-    if applyOnlyOnAK4 or applyOnlyOnAK8:
-        applyOnAK4AndAK8 = False
-        #global applyOnAK4AndAK8
     main()
 
