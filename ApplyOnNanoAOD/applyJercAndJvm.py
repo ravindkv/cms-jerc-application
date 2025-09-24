@@ -19,6 +19,16 @@ import correctionlib._core as correction
 # Only for writing histograms/dirs with familiar ROOT layout
 import ROOT
 
+# ---------------------------
+# Global toggles (match C++ defaults)
+# ---------------------------
+applyOnlyOnAK4 = False
+applyOnlyOnAK8 = True
+applyOnAK4AndAK8 = False
+applyOnMET = True
+isDebug = True
+
+
 try:
     from tqdm.auto import tqdm  # type: ignore
     _TQDM_AVAILABLE = True
@@ -33,15 +43,6 @@ except Exception:  # pragma: no cover - fallback when tqdm is unavailable
 
     def _progress_print(message: str) -> None:
         print(message)
-
-# ---------------------------
-# Global toggles (match C++ defaults)
-# ---------------------------
-applyOnlyOnAK4 = True
-applyOnlyOnAK8 = False
-applyOnAK4AndAK8 = False
-applyOnMET = True
-isDebug = True
 
 # ---------------------------
 # Helpers / small utilities
@@ -896,8 +897,6 @@ def process_events(
     if H["hMET_Nano"] is not None:
         fill_h1_from_array(H["hMET_Nano"], arrs["MET_pt"])
 
-    if applyOnlyOnAK4 or applyOnlyOnAK8:
-        applyOnAK4AndAK8 = False
     print_evt = None
     if isDebug:
         print_evt = _find_debug_event_index(

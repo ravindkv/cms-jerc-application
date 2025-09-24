@@ -56,8 +56,8 @@
 
 // Global flags to control which jet collections receive corrections.
 // Set exactly one of these flags to true to choose the target collection mix.
-bool applyOnlyOnAK4 = true;
-bool applyOnlyOnAK8 = false;
+bool applyOnlyOnAK4 = false;
+bool applyOnlyOnAK8 = true;
 bool applyOnAK4AndAK8 = false;
 // Control whether jet energy corrections are propagated to MET.
 bool applyOnMET = true;
