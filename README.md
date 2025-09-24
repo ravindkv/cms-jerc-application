@@ -1,3 +1,6 @@
+
+Moved to Gitlab: https://gitlab.cern.ch/cms-analysis/jme/jerc-application-tutorial
+
 This repository contains a small example of how to apply jet energy corrections (JEC = JES correction + JER correction) and the jet veto map to NanoAOD and MiniAOD samples.  
 
 Quick start from an lxplus environment:
