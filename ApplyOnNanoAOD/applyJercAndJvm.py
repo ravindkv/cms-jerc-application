@@ -4,16 +4,15 @@
 # Columnar port of applyJercAndJvm.C using uproot + awkward + correctionlib.
 # PyROOT is used only to write output histograms in the same structure.
 
-import os
 import math
 import json
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+from functools import lru_cache
 
 import numpy as np
 import awkward as ak
 import uproot
-import vector
 import correctionlib._core as correction
 
 # Only for writing histograms/dirs with familiar ROOT layout
@@ -47,8 +46,6 @@ except Exception:  # pragma: no cover - fallback when tqdm is unavailable
 # ---------------------------
 # Helpers / small utilities
 # ---------------------------
-
-from functools import lru_cache
 
 
 def printDebug(*args, indent: int = 0, enable: Optional[bool] = None) -> None:
@@ -206,6 +203,7 @@ def _find_debug_event_index(
 
 @lru_cache(maxsize=None)
 def load_json_cached(path: str) -> dict:
+    """Read and cache small JSON configuration files by absolute path."""
     with open(path, "r") as f:
         return json.load(f)
 
@@ -245,20 +243,9 @@ class CorrCache:
                 cls._jvm[year] = (None, None)
         return cls._jvm[year]
 
-
-def load_json(path: str) -> dict:
-    with open(path, "r") as f:
-        return json.load(f)
-
 def phi_mpi_pi(dphi):
     """Wrap delta-phi into [-pi, pi]."""
     return np.arctan2(np.sin(dphi), np.cos(dphi))
-
-def deltaR(eta1, phi1, eta2, phi2):
-    """Vectorized deltaR (supports numpy/awkward)."""
-    dEta = eta1 - eta2
-    dPhi = phi_mpi_pi(phi1 - phi2)
-    return np.sqrt(dEta * dEta + dPhi * dPhi)
 
 # ---------- CORRECTIONLIB SAFE EVAL HELPERS (works even without numpy-vectorized build) ----------
 
@@ -379,19 +366,6 @@ def uses_puppi_met(year: str) -> bool:
 def is_mc(isData: bool) -> bool:
     return not isData
 
-# Deterministic per-jet standard normal via hashing (Box–Muller)
-def normal_from_seeds(seedA, seedB):
-    # seeds should be unsigned 64-bit integers (awkward/numpy)
-    UINT64_MAX = np.uint64(0xFFFFFFFFFFFFFFFF)
-    a = (seedA ^ np.uint64(0x9E3779B97F4A7C15)) * np.uint64(0xBF58476D1CE4E5B9) & UINT64_MAX
-    b = (seedB ^ np.uint64(0x94D049BB133111EB)) * np.uint64(0xD2B74407B1CE6E93) & UINT64_MAX
-    # map to (0,1); avoid 0
-    u1 = (a.astype(np.float64) + 1.0) / (UINT64_MAX.astype(np.float64) + 2.0)
-    u2 = (b.astype(np.float64) + 1.0) / (UINT64_MAX.astype(np.float64) + 2.0)
-    # Box–Muller
-    z = np.sqrt(-2.0 * np.log(u1)) * np.cos(2.0 * np.pi * u2)
-    return z
-
 # ---------------------------
 # Config tag containers
 # ---------------------------
@@ -509,9 +483,6 @@ def _eventwise_trandom3_z(runs, lumis, events, pt_in):
     One standard-normal deviate per event using ROOT::TRandom3 with
     seed = event + run + lumi, then broadcast to all jets in that event.
     """
-    # jets-per-event (jagged lengths)
-    counts = ak.num(pt_in, axis=1)
-
     # Make sure we iterate per event (1D)
     runs_np   = ak.to_numpy(runs)
     lumis_np  = ak.to_numpy(lumis)
@@ -573,19 +544,11 @@ def jer_smear(pt_in, eta, phi, rho, year: str, refs: CorrectionRefs,
     debug_values("Matched JER corr :", corr_match, indent=8, event_index=print_evt)
 
     # ---------- Event-wide deterministic Gaussian (match C++ reseeding) ----------
-    # C++ seed: event + run + lumiblock (same for every jet in the event)
-    # Build one z per event and broadcast to jets.
-    seed_ev = ak.values_astype(events, "uint64") \
-              + ak.values_astype(runs,   "uint64") \
-              + ak.values_astype(lumis,  "uint64")
-
-    # Make a second seed deterministically from the first
-    seed_ev_b = seed_ev ^ np.uint64(0x9E3779B97F4A7C15)
-
+    # The C++ macro uses TRandom3 seeded with event + run + lumi.
+    # `_eventwise_trandom3_z` mirrors that behaviour and broadcasts the
+    # resulting Gaussian deviate to every jet within the event.
     z = _eventwise_trandom3_z(runs, lumis, events, pt_in)
     sigma = np.sqrt(np.maximum(sf * sf - 1.0, 0.0)) * reso
-    corr_unmatch = np.maximum(0.0, 1.0 + z * sigma)
-
     corr_unmatch = np.maximum(0.0, 1.0 + z * sigma)
     debug_values("UnMatched JER corr :", corr_unmatch, indent=8, event_index=print_evt)
 
@@ -847,8 +810,6 @@ def process_events(
     ak8_pt_raw = ak8_pt * (1.0 - ak8_rawF)
 
     ak8_sel = (ak8_pt >= 100.0) & (abs(ak8_eta) <= 5.2)
-    ak8_idx = ak.local_index(ak8_pt, axis=1)
-    ak8_keep_idx = ak8_idx[ak8_sel]
 
     # For Nano hist (only in nominal)
     if H["hJetPt_AK8_Nano"] is not None:
@@ -1166,6 +1127,9 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
     def fresh_arrays():
         return read_event_arrays(input_file, isData)
 
+    # Each task is a tuple: pretty-print label -> keyword arguments for
+    # `process_events`.  A fresh copy of the NanoAOD arrays is provided so the
+    # operations are side-effect free across passes.
     tasks: List[Tuple[str, Dict[str, object]]] = []
 
     tasks.append((
