@@ -755,49 +755,81 @@ def read_event_arrays(input_file: str, isData: bool):
 # ---------------------------
 # Event processing (columnar)
 # ---------------------------
-def process_events(fout: ROOT.TFile,
-                   year: str,
-                   isData: bool,
-                   era: Optional[str],
-                   syst_kind: str,             # "Nominal", "JES", "JER"
-                   jes_ak4_tag: Optional[str], # corr node for AK4 JES syst
-                   jes_ak8_tag: Optional[str], # corr node for AK8 JES syst
-                   jes_var: Optional[str],     # "Up" / "Down"
-                   jer_bin: Optional[JerBin],  # region gate
-                   jer_var: Optional[str],     # "up" / "down" / "nom"
-                   refsAK4: CorrectionRefs,    # <-- added
-                   refsAK8: CorrectionRefs,    # <-- added
-                   jvm_ref,                    # <-- added (Correction or None)
-                   jvm_key: Optional[str],
-                   arrs
-                   ):    
+def process_events(
+    fout: ROOT.TFile,
+    year: str,
+    isData: bool,
+    era: Optional[str],
+    syst_kind: str,                 # "Nominal", "JES", "JER"
+    jes_ak4_tag: Optional[str],
+    jes_ak8_tag: Optional[str],
+    jes_var: Optional[str],         # "Up" / "Down"
+    jer_bin: Optional[JerBin],
+    jer_var: Optional[str],         # "up" / "down" / "nom"
+    refsAK4: CorrectionRefs,
+    refsAK8: CorrectionRefs,
+    jvm_ref,
+    jvm_key: Optional[str],
+    arrs,
+    # NEW: allow overrides from tasks **kwargs
+    syst_set: Optional[str] = None,
+    syst_name: Optional[str] = None,
+):
+    # ---- debug header ----
+    printDebug(f"[Debug] Processing {syst_kind} (year={year}, isData={isData}, era={era}, syst_set={syst_set}, syst_name={syst_name})")
 
+    # -------- Decide histogram group (directory) and leaf (name) --------
+    # 1) group / directory
+    if syst_set is None:
+        if   syst_kind == "Nominal": syst_set_name = "Nominal"
+        elif syst_kind == "JES":     syst_set_name = "ForUncertaintyJES"
+        elif syst_kind == "JER":     syst_set_name = "ForUncertaintyJER"
+        else:                        syst_set_name = syst_kind
+    else:
+        syst_set_name = syst_set
 
-    printDebug(f"[Debug] Processing {syst_kind} (year={year}, isData={isData}, era={era})")
+    # 2) histogram name (leaf)
+    if syst_name is None:
+        if   syst_kind == "Nominal":
+            syst_name_final = "Nominal"
+        elif syst_kind == "JES":
+            base = jes_ak4_tag or jes_ak8_tag or "JES"
+            syst_name_final = f"{base}_{jes_var}" if jes_var else base
+        elif syst_kind == "JER":
+            if jer_bin is not None and jer_var in ("up", "down"):
+                syst_name_final = f"{jer_bin.label}_{'Up' if jer_var=='up' else 'Down'}"
+            else:
+                syst_name_final = "JER"
+        else:
+            syst_name_final = syst_kind
+    else:
+        # tasks provided a base name; add suffixes where relevant
+        if syst_kind == "JES" and jes_var:
+            syst_name_final = f"{syst_name}_{jes_var}"
+        elif syst_kind == "JER" and jer_bin is not None and jer_var in ("up", "down"):
+            syst_name_final = f"{syst_name}_{'Up' if jer_var=='up' else 'Down'}"
+        else:
+            syst_name_final = syst_name
 
+    # ---- proceed ----
     # Aliases
-    run = arrs["run"]
+    run  = arrs["run"]
     lumi = arrs["luminosityBlock"]
-    evt = arrs["event"]
-    
-    rho = arrs["Rho_fixedGridRhoFastjetAll"]
+    evt  = arrs["event"]
+    rho  = arrs["Rho_fixedGridRhoFastjetAll"]
+
     # Hist group
-    syst_set_name = "Nominal" if syst_kind == "Nominal" else ("ForUncertaintyJES" if syst_kind == "JES" else "ForUncertaintyJER")
-    syst_name = "Nominal"
-    if syst_kind == "JES":
-        base = jes_ak4_tag or jes_ak8_tag or "JES"
-        syst_name = f"{base}_{jes_var}"
-    elif syst_kind == "JER":
-        syst_name = f"{jer_bin.label}_{'Up' if jer_var=='up' else 'Down'}"
     H, hist_dir = make_hists(
         fout,
         year,
         isData,
         era,
         syst_set_name,
-        syst_name,
+        syst_name_final,
         also_nano=(syst_kind == "Nominal"),
     )
+
+    printDebug(f"[Debug] make_hists -> set='{syst_set_name}', name='{syst_name_final}'")
 
     # --- AK8 preselect
     ak8_pt = arrs["FatJet_pt"]
@@ -1146,6 +1178,8 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
             "jes_var": None,
             "jer_bin": None,
             "jer_var": None,
+            "syst_set":"Nominal",
+            "syst_name":"Nominal",
         },
     ))
 
@@ -1164,6 +1198,8 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                                 "jes_var": var,
                                 "jer_bin": None,
                                 "jer_var": None,
+                                "syst_set": setName,
+                                "syst_name": baseName
                             },
                         ))
         elif applyOnlyOnAK8:
@@ -1179,25 +1215,38 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                                 "jes_var": var,
                                 "jer_bin": None,
                                 "jer_var": None,
+                                "syst_set": setName,
+                                "syst_name": baseName
                             },
                         ))
         else:
-            base_to_ak4 = {base: full for setName, pairs in sAK4.items() for (full, base) in pairs}
-            base_to_ak8 = {base: full for setName, pairs in sAK8.items() for (full, base) in pairs}
-            common_bases = sorted(set(base_to_ak4) & set(base_to_ak8))
-            for base in common_bases:
-                for var in ("Up", "Down"):
-                    tasks.append((
-                        f"\n [JES Syst]: {base}_{var}",
-                        {
-                            "syst_kind": "JES",
-                            "jes_ak4_tag": base_to_ak4[base],
-                            "jes_ak8_tag": base_to_ak8[base],
-                            "jes_var": var,
-                            "jer_bin": None,
-                            "jer_var": None,
-                        },
-                    ))
+            # loop over every set present in either AK4 or AK8
+            for setName in sorted(set(sAK4.keys()) | set(sAK8.keys())):
+                ak4_pairs = sAK4.get(setName, [])
+                ak8_pairs = sAK8.get(setName, [])
+            
+                # base -> full tag maps for this set
+                base_to_ak4 = {base: full for (full, base) in ak4_pairs}
+                base_to_ak8 = {base: full for (full, base) in ak8_pairs}
+            
+                # intersection per-set
+                common_bases = sorted(set(base_to_ak4) & set(base_to_ak8))
+                for base in common_bases:
+                    for var in ("Up", "Down"):
+                        tasks.append((
+                            f"\n [JES Syst]: {base}_{var}",
+                            {
+                                "syst_kind": "JES",
+                                "jes_ak4_tag": base_to_ak4[base],
+                                "jes_ak8_tag": base_to_ak8[base],
+                                "jes_var": var,
+                                "jer_bin": None,
+                                "jer_var": None,
+                                "syst_set": setName,   
+                                "syst_name": base
+                            },
+                        ))
+            
 
         # 2) JER systematics (region-gated up/down)
         for setName, bins in jerSets.items():
@@ -1212,6 +1261,8 @@ def process_with_nominal_and_syst(input_file: str, fout: ROOT.TFile,
                             "jes_var": None,
                             "jer_bin": b,
                             "jer_var": var,
+                            "syst_set": setName,   
+                            "syst_name": b.label
                         },
                     ))
 
