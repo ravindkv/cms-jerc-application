@@ -30,27 +30,23 @@
 #include <TChain.h>
 #include <TLorentzVector.h>
 #include <TRandom3.h>
-
-#include <iostream>
-#include <fstream>
-#include <stdexcept>
-#include <string>
-#include <vector>
-#include <map>
-#include <unordered_set>
-#include <optional>
-#include <cmath>
-#include <iomanip>
-#include <sstream>
-#include <cstdio>
-#if defined(_WIN32)
-#include <io.h>
-#else
-#include <unistd.h>
-#endif
+#include <TVector2.h>
+#include <TDirectory.h>
 #include <TFile.h>
 #include <TH1F.h>
-#include <TDirectory.h>
+
+#include <algorithm>
+#include <cmath>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 
 #include <nlohmann/json.hpp>
@@ -417,7 +413,12 @@ inline double representativeRunNumber(const NanoTree& nanoT, const std::string& 
 }
 
 // Simple helper to conditionally print debug information with optional indentation.
-int spaces2 = 2, spaces3 = 3, spaces4 = 4, spaces5 = 5, spaces6 = 6;
+namespace {
+constexpr int INDENT_BLOCK = 3;
+constexpr int INDENT_JET = 4;
+constexpr int INDENT_DETAIL = 5;
+constexpr int INDENT_STEP = 6;
+}
 template<typename... Args>
 void printDebug(bool enable, int indent, const Args&... args) {
     if (!enable) return;
@@ -443,25 +444,25 @@ void printDebug(bool enable, int indent, const Args&... args) {
  */
 template<typename Specs>
 void applyJESNominal(NanoTree& nanoT,
-                       std::string year,
+                       const std::string& year,
                        CorrectionRefs& refs,
                        bool isData,
                        const std::vector<UInt_t>& idxs,
                        bool print=false)
 {
     for(auto idx: idxs){
-        printDebug(print, spaces4, "[Jet] index=", idx, 
+        printDebug(print, INDENT_JET, "[Jet] index=", idx, 
                                           ", eta= ", Specs::getEta(nanoT,idx),
                                           ", phi= ", Specs::getPhi(nanoT,idx),
                                           ", area= ", Specs::getArea(nanoT,idx),
                                           ", rawFactor= ", Specs::getRawFactor(nanoT,idx)
                                           );
-        printDebug(print, spaces6, "default NanoAod  Pt=", Specs::getPt(nanoT,idx));
+        printDebug(print, INDENT_STEP, "default NanoAod  Pt=", Specs::getPt(nanoT,idx));
 
         // Raw pT: undo the default JES correction applied in NanoAOD.
         double rawSF = 1.0 - Specs::getRawFactor(nanoT, idx);
         Specs::applyCorrection(nanoT, idx, rawSF);
-        printDebug(print, spaces6, "after undoing    Pt=", Specs::getPt(nanoT,idx));
+        printDebug(print, INDENT_STEP, "after undoing    Pt=", Specs::getPt(nanoT,idx));
 
         // L1FastJet (pileup correction).
         double c1 = refs.corrRefJesL1FastJet->evaluate({ Specs::getArea(nanoT,idx),
@@ -469,7 +470,7 @@ void applyJESNominal(NanoTree& nanoT,
                                             Specs::getPt(nanoT,idx),
                                             nanoT.Rho });
         Specs::applyCorrection(nanoT, idx, c1);
-        printDebug(print, spaces6, "after L1FastJet  Pt=", Specs::getPt(nanoT,idx));
+        printDebug(print, INDENT_STEP, "after L1FastJet  Pt=", Specs::getPt(nanoT,idx));
 
         // L2Relative (MC truth correction).
         double c2 = 1.0;
@@ -482,7 +483,7 @@ void applyJESNominal(NanoTree& nanoT,
                                             Specs::getPt(nanoT,idx) });
         }
         Specs::applyCorrection(nanoT, idx, c2);
-        printDebug(print, spaces6, "after L2Relative Pt=", Specs::getPt(nanoT,idx));
+        printDebug(print, INDENT_STEP, "after L2Relative Pt=", Specs::getPt(nanoT,idx));
 
         // L2L3Residual (L2Residual + L3Residual together) applied only to data.
         // (Covers residual differences between data and simulation.)
@@ -498,7 +499,7 @@ void applyJESNominal(NanoTree& nanoT,
                                                       Specs::getPt(nanoT,idx) });
           }
           Specs::applyCorrection(nanoT, idx, cR);
-          printDebug(print, spaces6, "after L2L3Residual Pt=", Specs::getPt(nanoT,idx));
+          printDebug(print, INDENT_STEP, "after L2L3Residual Pt=", Specs::getPt(nanoT,idx));
         }
     }
 }
@@ -522,7 +523,7 @@ struct JerBin {
 
 template<typename Specs>
 void applyJERNominalOrShift(NanoTree& nanoT,
-                  std::string year,
+                  const std::string& year,
                   CorrectionRefs& refs,
                   const std::vector<UInt_t>& idxs,
                   const std::string& var,                          // "nom" / "up" / "down"
@@ -530,9 +531,6 @@ void applyJERNominalOrShift(NanoTree& nanoT,
                   bool print=false)
 {
     if (idxs.empty()) return;
-    if (std::is_same<Specs, AK4Specs>::value || std::is_same<Specs, AK8Specs>::value) {
-        // ok
-    }
     for (auto idx : idxs) {
         const double etaJet = Specs::getEta(nanoT, idx);
         const double ptJet  = Specs::getPt (nanoT, idx);
@@ -577,25 +575,25 @@ void applyJERNominalOrShift(NanoTree& nanoT,
         double corr = 1.0;
         if (isMatch) {
             corr = std::max(0.0, 1.0 + (sf - 1.0) * (ptJet - Specs::getGenPt(nanoT, genIdx)) / ptJet);
-            printDebug(print, spaces4, "Matched: JER corr =", corr); 
+            printDebug(print, INDENT_JET, "Matched: JER corr =", corr); 
         } else {
             corr = std::max(0.0, 1.0 + refs.randomGen.Gaus(0.0, reso) *
                                      std::sqrt(std::max(sf*sf - 1.0, 0.0)));
-            printDebug(print, spaces4, "UnMatched: JER corr =", corr); 
+            printDebug(print, INDENT_JET, "UnMatched: JER corr =", corr); 
         }
-        printDebug(print, spaces4, "[Jet] index=", idx, 
+        printDebug(print, INDENT_JET, "[Jet] index=", idx, 
                                           ", eta= ", Specs::getEta(nanoT,idx),
                                           ", isGenMatched = ", isMatch, 
                                           ", smearing factor = ", corr 
                                           );
-        printDebug(print, spaces5, "JES corrected  Pt=", Specs::getPt(nanoT,idx));
+        printDebug(print, INDENT_DETAIL, "JES corrected  Pt=", Specs::getPt(nanoT,idx));
         Specs::applyCorrection(nanoT, idx, corr);
 
         std::string extra;
         if (region.has_value()) {
             extra = "   [inRegion=" + std::string(inRegion(*region) ? "yes" : "no") + "]";
         }
-        printDebug(print, spaces5, "JER(", useVar, ") smeared Pt=", Specs::getPt(nanoT, idx), extra);
+        printDebug(print, INDENT_DETAIL, "JER(", useVar, ") smeared Pt=", Specs::getPt(nanoT, idx), extra);
 
     }
 }
@@ -804,12 +802,12 @@ void applySystShiftJES(NanoTree& nanoT,
 {
     auto systCorr = safeGet(refs.cs, systName);
     for(auto idx: idxs){
-        printDebug(print, spaces4, "[Jet] index=", idx);
-        printDebug(print, spaces5, "Nominal corrected    Pt=", Specs::getPt(nanoT,idx));
+        printDebug(print, INDENT_JET, "[Jet] index=", idx);
+        printDebug(print, INDENT_DETAIL, "Nominal corrected    Pt=", Specs::getPt(nanoT,idx));
         double scale = systCorr->evaluate({ Specs::getEta(nanoT,idx), Specs::getPt(nanoT,idx) });
         double shift = (var=="Up" ? 1+scale : 1-scale);
         Specs::applyCorrection(nanoT, idx, shift);
-        printDebug(print, spaces5, "Syst corrected    Pt=", Specs::getPt(nanoT,idx));
+        printDebug(print, INDENT_DETAIL, "Syst corrected    Pt=", Specs::getPt(nanoT,idx));
 
     }
 }
@@ -817,8 +815,10 @@ void applySystShiftJES(NanoTree& nanoT,
 // Propagate the effect of jet corrections to MET using the stored raw jet pT.
 // The JES and JER are applied starting from the muon-subtracted raw jet pT and
 // the difference with respect to the L1 corrected value is propagated to MET.
+// The index list must correspond to the raw pT bookkeeping (i.e. use the
+// original NanoAOD ordering).
 TLorentzVector getCorrectedMet(NanoTree& nanoT,
-                       std::string year,
+                       const std::string& year,
                        CorrectionRefs& refs,
                        bool isData,
                        const std::vector<UInt_t>& idxs,
@@ -838,10 +838,9 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
     }
     double met_px = met_raw_pt * std::cos(met_raw_phi);
     double met_py = met_raw_pt * std::sin(met_raw_phi);
-    printDebug(print, spaces3, "[Met] Raw Pt =", met_raw_pt);
-    for (size_t i = 0; i < idxs.size(); ++i) {
-        if (i >= rawPts.size()) break; // safety guard
-        const UInt_t idx = idxs[i];
+    printDebug(print, INDENT_BLOCK, "[Met] Raw Pt =", met_raw_pt);
+    for (const auto idx : idxs) {
+        if (idx >= rawPts.size()) continue; // guard against mismatched bookkeeping
         const double phi  = nanoT.Jet_phi[idx];
         const double eta  = nanoT.Jet_eta[idx];
         const double area = nanoT.Jet_area[idx];
@@ -934,9 +933,9 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
                              && (nanoT.Jet_chEmEF[idx] + nanoT.Jet_neEmEF[idx]) < 0.9
                              );
         if (!passSel) continue;
-        printDebug(print, spaces4, "[Jet] index=", idx);
-        printDebug(print, spaces6, "L1 JEC corrected Pt =", pt_corr_l1rc);
-        printDebug(print, spaces6, "L1L2L3JEC + JER corrected Pt =", pt_corr);
+        printDebug(print, INDENT_JET, "[Jet] index=", idx);
+        printDebug(print, INDENT_STEP, "L1 JEC corrected Pt =", pt_corr_l1rc);
+        printDebug(print, INDENT_STEP, "L1L2L3JEC + JER corrected Pt =", pt_corr);
         const double dpt = (pt_corr - pt_corr_l1rc);
         met_px -= dpt * std::cos(phi);
         met_py -= dpt * std::sin(phi);
@@ -944,7 +943,7 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
     // Finalise MET.
     const double met_pt  = std::hypot(met_px, met_py);
     const double met_phi = std::atan2(met_py, met_px);
-    printDebug(print, spaces3, "[Met] Type-1 corrected Pt =", met_pt);
+    printDebug(print, INDENT_BLOCK, "[Met] Type-1 corrected Pt =", met_pt);
     TLorentzVector p4MetCorr;
     p4MetCorr.SetPtEtaPhiM(met_pt, 0, met_phi, 0);
     return p4MetCorr;
@@ -958,7 +957,9 @@ TLorentzVector getCorrectedMet(NanoTree& nanoT,
  * Check whether any reconstructed jet falls inside a jet veto region as
  * defined by the provided correction map.
  */
-bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef, std::string jvmKeyName, const NanoTree& nanoT){
+bool checkIfAnyJetInVetoRegion(const correction::Correction::Ref &jvmRef,
+                               const std::string& jvmKeyName,
+                               const NanoTree& nanoT){
     const double maxEtaInMap = 5.191;
     const double maxPhiInMap = 3.1415926;
     bool vetoEvent = false;
@@ -1145,6 +1146,10 @@ static void processEvents(TChain& chain,
         useJvm  = true;
     }
 
+    // Determine once which jet collections need to be corrected in this pass.
+    const bool runAK4 = applyOnlyOnAK4 || applyOnAK4AndAK8;
+    const bool runAK8 = applyOnlyOnAK8 || applyOnAK4AndAK8;
+
     const bool writeNano = systTagDetail.isNominal(); // write once in Nominal pass
     Hists H = makeHists(fout, year, isData, era, systTagDetail.systSetName(),
                         systTagDetail.systName(), writeNano);
@@ -1159,34 +1164,34 @@ static void processEvents(TChain& chain,
 
         fillHist(H.hMET_Nano, nanoT.MET_pt);
 
-        if(applyOnlyOnAK4 || applyOnlyOnAK8) applyOnAK4AndAK8 = false;
         // --- Select jet indices using helper functions.
         std::vector<UInt_t> indicesAK8;
-        if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+        if (runAK8) {
             indicesAK8 = collectAK8Jets(nanoT, H.hJetPt_AK8_Nano);
         }
         std::vector<UInt_t> indicesAK4;
-        if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+        if (runAK4) {
             indicesAK4 = collectNonOverlappingAK4Jets(nanoT, indicesAK8, H.hJetPt_AK4_Nano);
         }
 
         // Store raw AK4 jet pT values for MET propagation (only AK4 contributes to MET).
-        std::vector<double> rawPtsAK4ForMet;
-        std::vector<UInt_t> indicesAK4ForMet;
-        rawPtsAK4ForMet.reserve(nanoT.nJet);
-        indicesAK4ForMet.reserve(nanoT.nJet);
-        for (int i = 0; i < nanoT.nJet; ++i){
-            rawPtsAK4ForMet.push_back((1 - nanoT.Jet_rawFactor[i]) * nanoT.Jet_pt[i]);
-            indicesAK4ForMet.push_back(i);
+        const int nAk4Jets = std::max(nanoT.nJet, 0);
+        std::vector<double> rawPtsAK4ForMet(static_cast<size_t>(nAk4Jets));
+        std::vector<UInt_t> jetIndicesForMet;
+        jetIndicesForMet.reserve(static_cast<size_t>(nAk4Jets));
+        // Keep the raw jet ordering when storing indices for MET propagation.
+        for (int i = 0; i < nAk4Jets; ++i){
+            rawPtsAK4ForMet[i] = (1 - nanoT.Jet_rawFactor[i]) * nanoT.Jet_pt[i];
+            jetIndicesForMet.push_back(static_cast<UInt_t>(i));
         }
 
         bool whenToPrint = false;
-        if(applyOnAK4AndAK8){
-            if(!indicesAK4.empty() &&  !indicesAK8.empty()) whenToPrint = true;
-        }else if(applyOnlyOnAK4){
-            if(!indicesAK4.empty()) whenToPrint = true;
-        }else if(applyOnlyOnAK8){
-            if(!indicesAK8.empty()) whenToPrint = true;
+        if(runAK4 && runAK8){
+            whenToPrint = !indicesAK4.empty() && !indicesAK8.empty();
+        }else if(runAK4){
+            whenToPrint = !indicesAK4.empty();
+        }else if(runAK8){
+            whenToPrint = !indicesAK8.empty();
         }
         if(whenToPrint && printCount==0){
             printCount++; print = true;
@@ -1197,26 +1202,26 @@ static void processEvents(TChain& chain,
         // =========================
         if (systTagDetail.isNominal()) {
             // In the nominal pass print the full per-jet breakdown.
-            if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
-                printDebug(print, spaces3, "AK4 (JES nominal) on "+std::to_string(indicesAK4.size())+" jets");
+            if (runAK4) {
+                printDebug(print, INDENT_BLOCK, "AK4 (JES nominal) on "+std::to_string(indicesAK4.size())+" jets");
                 applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, print);
             }
 
-            if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
-                printDebug(print, spaces3, "AK8 (JES nominal) on "+std::to_string(indicesAK8.size())+" jets");
+            if (runAK8) {
+                printDebug(print, INDENT_BLOCK, "AK8 (JES nominal) on "+std::to_string(indicesAK8.size())+" jets");
                 applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, print);
             }
         } else {
             // For systematic shifts we still need to apply the nominal
             // corrections but skip the verbose printing to avoid repeating
             // the same information for each shift.
-            if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
+            if (runAK4) {
                 applyJESNominal<AK4Specs>(nanoT, year, refsAK4, isData, indicesAK4, false);
             }
-            if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
+            if (runAK8) {
                 applyJESNominal<AK8Specs>(nanoT, year, refsAK8, isData, indicesAK8, false);
             }
-            printDebug(print, spaces3, "Nominal JES applied");
+            printDebug(print, INDENT_BLOCK, "Nominal JES applied");
         }
 
         // =========================
@@ -1224,13 +1229,13 @@ static void processEvents(TChain& chain,
         // =========================
         if (!isData && systTagDetail.kind == SystKind::JES) {
             const auto& jesDetail = static_cast<const SystTagDetailJES&>(systTagDetail);
-            if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
-                printDebug(print, spaces3, "AK4 (JES ", jesDetail.var, ")");
+            if (runAK4) {
+                printDebug(print, INDENT_BLOCK, "AK4 (JES ", jesDetail.var, ")");
                 applySystShiftJES<AK4Specs>(nanoT, refsAK4, jesDetail.tagAK4, jesDetail.var, indicesAK4, print);
             }
 
-            if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
-                printDebug(print, spaces3, "AK8 (JES ", jesDetail.var, ")");
+            if (runAK8) {
+                printDebug(print, INDENT_BLOCK, "AK8 (JES ", jesDetail.var, ")");
                 applySystShiftJES<AK8Specs>(nanoT, refsAK8, jesDetail.tagAK8, jesDetail.var, indicesAK8, print);
             }
         }
@@ -1256,19 +1261,19 @@ static void processEvents(TChain& chain,
         // 3) JER (after all JES): apply nominal or shifted smearing for MC.
         // =========================
         if (!isData) {
-            if (applyOnlyOnAK4 || applyOnAK4AndAK8) {
-                printDebug(print, spaces3, "AK4 (JER ", jerVar == "nom" ? "nom" : (jerVar == "up" ? "Up" : "Down"), ")");
+            if (runAK4) {
+                printDebug(print, INDENT_BLOCK, "AK4 (JER ", jerVar == "nom" ? "nom" : (jerVar == "up" ? "Up" : "Down"), ")");
                 applyJERNominalOrShift<AK4Specs>(nanoT, year, refsAK4, indicesAK4, jerVar, jerRegion, print);
             }
-            if (applyOnlyOnAK8 || applyOnAK4AndAK8) {
-                printDebug(print, spaces3, "AK8 (JER ", jerVar == "nom" ? "nom" : (jerVar == "up" ? "Up" : "Down"), ")");
+            if (runAK8) {
+                printDebug(print, INDENT_BLOCK, "AK8 (JER ", jerVar == "nom" ? "nom" : (jerVar == "up" ? "Up" : "Down"), ")");
                 applyJERNominalOrShift<AK8Specs>(nanoT, year, refsAK8, indicesAK8, jerVar, jerRegion, print);
             }
         }
 
         if (applyOnMET) {
             TLorentzVector p4CorrectedMET = getCorrectedMet(nanoT, year, refsAK4, isData,
-                                                            indicesAK4ForMet, rawPtsAK4ForMet,
+                                                            jetIndicesForMet, rawPtsAK4ForMet,
                                                             jerVar, jerRegion, jesSystName, jesVar, print);
             H.hMET->Fill(p4CorrectedMET.Pt());
         }
@@ -1374,10 +1379,10 @@ void processEventsWithNominalOrSyst(TChain& chain,
         progressPrefix += " (" + *era + ")";
     }
 
-    // Use stderr to keep logs and progress separated 
+    // Use stderr to keep logs and progress separated
     boost::timer::progress_display progress(totalPasses, std::cerr);
-    std::cerr << "\n" << progressPrefix << " : finished " << totalPasses << " passes.\n";
-    auto run_pass = [&](const SystTagDetail& detail, const std::string& label, const char* banner = nullptr) {
+    std::cerr << "\n" << progressPrefix << " : running " << totalPasses << " passes...\n";
+    auto run_pass = [&](const SystTagDetail& detail, const char* banner = nullptr) {
         if (banner) std::cout << banner << '\n';  // same banner printing as before
         NanoTree nanoT;
         setupNanoBranches(&chain, nanoT, isData);
@@ -1387,19 +1392,19 @@ void processEventsWithNominalOrSyst(TChain& chain,
 
 
     // 0) Nominal pass.
-    run_pass(SystTagDetail{}, "Nominal", " [Nominal]");
+    run_pass(SystTagDetail{}, " [Nominal]");
 
     if (!isData) {
         // 1) Correlated JES systematics.
         for (const auto& d : jesDetails) {
             std::cout << "\n [JES Syst]: " << d.systName() << '\n';
-            run_pass(d, std::string("JES ") + d.systName());
+            run_pass(d);
         }
 
         // 2) JER systematics (Up/Down) with region gating from JSON.
         for (const auto& d : jerDetails) {
             std::cout << "\n [JER Syst]: " << d.systSetName() << "/" << d.systName() << '\n';
-            run_pass(d, std::string("JER ") + d.systName());
+            run_pass(d);
         }
     }
 }
